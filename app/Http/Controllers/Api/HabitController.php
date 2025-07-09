@@ -24,7 +24,9 @@ class HabitController extends Controller
             ->get();
 
         return response()->json([
-            'habits' => $habits
+            'habits' => [
+                'data' => $habits
+            ]
         ]);
     }
 
@@ -37,8 +39,7 @@ class HabitController extends Controller
 
         if ($validator->fails()) {
             return response()->json([
-                'error' => 'Validation failed',
-                'messages' => $validator->errors()
+                'errors' => $validator->errors()
             ], 422);
         }
 
@@ -88,10 +89,12 @@ class HabitController extends Controller
     /**
      * Update a habit.
      */
-    public function update(Request $request, Habit $habit): JsonResponse
+    public function update(Request $request, $id): JsonResponse
     {
-        // Check if the habit belongs to the authenticated user
-        if (!$habit->belongsToUser($request->user()->id)) {
+        // Use resolveRouteBinding manually
+        $habit = (new Habit())->resolveRouteBinding($id);
+        
+        if (!$habit) {
             return response()->json([
                 'error' => 'Habit not found'
             ], 404);
@@ -101,8 +104,7 @@ class HabitController extends Controller
 
         if ($validator->fails()) {
             return response()->json([
-                'error' => 'Validation failed',
-                'messages' => $validator->errors()
+                'errors' => $validator->errors()
             ], 422);
         }
 
@@ -135,10 +137,12 @@ class HabitController extends Controller
     /**
      * Delete a habit.
      */
-    public function destroy(Request $request, Habit $habit): JsonResponse
+    public function destroy(Request $request, $id): JsonResponse
     {
-        // Check if the habit belongs to the authenticated user
-        if (!$habit->belongsToUser($request->user()->id)) {
+        // Use resolveRouteBinding manually
+        $habit = (new Habit())->resolveRouteBinding($id);
+        
+        if (!$habit) {
             return response()->json([
                 'error' => 'Habit not found'
             ], 404);
@@ -170,22 +174,72 @@ class HabitController extends Controller
     }
 
     /**
-     * Get habit statistics.
+     * Get statistics for a specific habit.
      */
-    public function stats(Request $request, Habit $habit): JsonResponse
+    public function stats(Request $request, $id)
     {
-        // Check if the habit belongs to the authenticated user
-        if (!$habit->belongsToUser($request->user()->id)) {
-            return response()->json([
-                'error' => 'Habit not found'
-            ], 404);
+        $habit = $request->user()->habits()->findOrFail($id);
+        
+        // Get logs for the last 30 days
+        $thirtyDaysAgo = now()->subDays(30);
+        $logs = $habit->habitLogs()
+            ->where('created_at', '>=', $thirtyDaysAgo)
+            ->get();
+        
+        // Calculate statistics
+        $totalLogs = $logs->count();
+        $completionRate = $totalLogs > 0 ? ($totalLogs / 30) * 100 : 0;
+        
+        // Group by date for streak calculation
+        $logsByDate = $logs->groupBy(function($log) {
+            return $log->created_at->format('Y-m-d');
+        });
+        
+        // Calculate current streak
+        $currentStreak = 0;
+        $maxStreak = 0;
+        $tempStreak = 0;
+        
+        for ($i = 0; $i < 30; $i++) {
+            $date = now()->subDays($i)->format('Y-m-d');
+            if ($logsByDate->has($date)) {
+                $tempStreak++;
+                if ($i === 0) {
+                    $currentStreak = $tempStreak;
+                }
+                $maxStreak = max($maxStreak, $tempStreak);
+            } else {
+                $tempStreak = 0;
+            }
+        }
+        
+        // Get weekly breakdown
+        $weeklyStats = [];
+        for ($week = 0; $week < 4; $week++) {
+            $weekStart = now()->subWeeks($week)->startOfWeek();
+            $weekEnd = now()->subWeeks($week)->endOfWeek();
+            
+            $weekLogs = $habit->habitLogs()
+                ->whereBetween('created_at', [$weekStart, $weekEnd])
+                ->count();
+            
+            $weeklyStats[] = [
+                'week' => $weekStart->format('M d') . ' - ' . $weekEnd->format('M d'),
+                'logs' => $weekLogs,
+                'completion_rate' => ($weekLogs / 7) * 100
+            ];
         }
 
-        $stats = $habit->getMonthlyStats();
-
         return response()->json([
-            'habit_id' => $habit->id,
-            'stats' => $stats
+            'habit' => $habit,
+            'statistics' => [
+                'total_logs' => $totalLogs,
+                'completion_rate' => round($completionRate, 2),
+                'current_streak' => $currentStreak,
+                'max_streak' => $maxStreak,
+                'weekly_breakdown' => array_reverse($weeklyStats),
+                'last_30_days' => $logsByDate->keys()->toArray()
+            ]
         ]);
     }
 } 

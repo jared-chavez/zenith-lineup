@@ -37,8 +37,7 @@ class HabitLogController extends Controller
 
         if ($validator->fails()) {
             return response()->json([
-                'error' => 'Validation failed',
-                'messages' => $validator->errors()
+                'errors' => $validator->errors()
             ], 422);
         }
 
@@ -79,10 +78,12 @@ class HabitLogController extends Controller
     /**
      * Get a specific habit log.
      */
-    public function show(Request $request, HabitLog $habitLog): JsonResponse
+    public function show(Request $request, $id): JsonResponse
     {
-        // Check if the log belongs to the authenticated user
-        if (!$habitLog->belongsToUser($request->user()->id)) {
+        // Use resolveRouteBinding manually
+        $habitLog = (new HabitLog())->resolveRouteBinding($id);
+        
+        if (!$habitLog) {
             return response()->json([
                 'error' => 'Habit log not found'
             ], 404);
@@ -96,10 +97,12 @@ class HabitLogController extends Controller
     /**
      * Update a habit log.
      */
-    public function update(Request $request, HabitLog $habitLog): JsonResponse
+    public function update(Request $request, $id): JsonResponse
     {
-        // Check if the log belongs to the authenticated user
-        if (!$habitLog->belongsToUser($request->user()->id)) {
+        // Use resolveRouteBinding manually
+        $habitLog = (new HabitLog())->resolveRouteBinding($id);
+        
+        if (!$habitLog) {
             return response()->json([
                 'error' => 'Habit log not found'
             ], 404);
@@ -109,8 +112,7 @@ class HabitLogController extends Controller
 
         if ($validator->fails()) {
             return response()->json([
-                'error' => 'Validation failed',
-                'messages' => $validator->errors()
+                'errors' => $validator->errors()
             ], 422);
         }
 
@@ -143,10 +145,12 @@ class HabitLogController extends Controller
     /**
      * Delete a habit log.
      */
-    public function destroy(Request $request, HabitLog $habitLog): JsonResponse
+    public function destroy(Request $request, $id): JsonResponse
     {
-        // Check if the log belongs to the authenticated user
-        if (!$habitLog->belongsToUser($request->user()->id)) {
+        // Use resolveRouteBinding manually
+        $habitLog = (new HabitLog())->resolveRouteBinding($id);
+        
+        if (!$habitLog) {
             return response()->json([
                 'error' => 'Habit log not found'
             ], 404);
@@ -194,7 +198,7 @@ class HabitLogController extends Controller
 
         $logs = $request->user()->habitLogs()
             ->with('habit')
-            ->where('log_date', $date)
+            ->whereDate('log_date', $date)
             ->get();
 
         return response()->json([
@@ -221,7 +225,8 @@ class HabitLogController extends Controller
 
         $logs = $request->user()->habitLogs()
             ->with('habit')
-            ->dateRange($start, $end)
+            ->whereDate('log_date', '>=', $start)
+            ->whereDate('log_date', '<=', $end)
             ->orderBy('log_date', 'desc')
             ->get();
 

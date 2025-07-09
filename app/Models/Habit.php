@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 class Habit extends Model
@@ -113,5 +115,27 @@ class Habit extends Model
             'completion_rate' => $logs->count() > 0 ? 
                 round(($logs->where('status', 'completed')->count() / $logs->count()) * 100, 2) : 0,
         ];
+    }
+
+    /**
+     * Resolve route binding to only return habits belonging to the authenticated user.
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        if (!Auth::check()) {
+            Log::info('Route binding: No user authenticated');
+            return null;
+        }
+        
+        $userId = Auth::user()->id;
+        Log::info('Route binding: Looking for habit', ['habit_id' => $value, 'user_id' => $userId]);
+        
+        $habit = $this->where('id', $value)
+                    ->where('user_id', $userId)
+                    ->first();
+                    
+        Log::info('Route binding: Result', ['found' => $habit ? 'yes' : 'no']);
+        
+        return $habit;
     }
 } 

@@ -27,8 +27,7 @@ class AuthController extends Controller
 
         if ($validator->fails()) {
             return response()->json([
-                'error' => 'Validation failed',
-                'messages' => $validator->errors()
+                'errors' => $validator->errors()
             ], 422);
         }
 
@@ -84,8 +83,7 @@ class AuthController extends Controller
 
         if ($validator->fails()) {
             return response()->json([
-                'error' => 'Validation failed',
-                'messages' => $validator->errors()
+                'errors' => $validator->errors()
             ], 422);
         }
 
@@ -106,7 +104,6 @@ class AuthController extends Controller
         // Actualizar información de último login
         $user->update([
             'last_login_at' => now(),
-            'last_login_ip' => $request->ip(),
         ]);
         
         $token = $user->createToken('auth_token')->plainTextToken;
