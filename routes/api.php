@@ -33,7 +33,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/profile', [ProfileController::class, 'update']);
     
     // Habits routes
-    Route::apiResource('habits', HabitController::class);
+    Route::apiResource('/habits', HabitController::class);
     Route::get('/habits/{habit}/stats', [HabitController::class, 'stats']);
     
     // Habit logs routes

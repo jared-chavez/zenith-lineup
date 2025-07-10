@@ -65,14 +65,14 @@ class RateLimiting
     protected function getMaxAttempts(Request $request): int
     {
         if ($request->is('api/auth/*')) {
-            return 5; // Login attempts
+            return 10; // Increased from 5 to 10 for login attempts
         }
 
         if ($request->is('api/*')) {
-            return 60; // API requests per minute
+            return 300; // Increased from 60 to 300 for API requests per minute
         }
 
-        return 120; // General requests per minute
+        return 600; // Increased from 120 to 600 for general requests per minute
     }
 
     /**
@@ -81,7 +81,7 @@ class RateLimiting
     protected function getDecayMinutes(Request $request): int
     {
         if ($request->is('api/auth/*')) {
-            return 15; // 15 minutes for auth attempts
+            return 5; // Reduced from 15 to 5 minutes for auth attempts
         }
 
         return 1; // 1 minute for other requests

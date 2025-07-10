@@ -2,16 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
-});
-
-Route::middleware([
-    'auth:sanctum',
-    config('jetstream.auth_session'),
-    'verified',
-])->group(function () {
-    Route::get('/dashboard', function () {
-        return view('dashboard');
-    })->name('dashboard');
-});
+// Serve React SPA for all frontend routes (excluding API routes)
+Route::get('/{any}', function () {
+    return view('app');
+})->where('any', '^(?!api).*$');

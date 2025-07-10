@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LogOut, Home, Target, User, Menu, X } from 'lucide-react';
+import { LogOut, Home, Target, User, Menu, X, Activity } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import { useState } from 'react';
 
@@ -12,6 +12,7 @@ const Layout = () => {
     const navigation = [
         { name: 'Dashboard', href: '/dashboard', icon: Home },
         { name: 'Hábitos', href: '/habits', icon: Target },
+        { name: 'Registros', href: '/logs', icon: Activity },
         { name: 'Perfil', href: '/profile', icon: User },
     ];
 

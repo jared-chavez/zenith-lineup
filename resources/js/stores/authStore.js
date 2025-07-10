@@ -10,6 +10,17 @@ const useAuthStore = create(
             isAuthenticated: false,
             isLoading: false,
             error: null,
+            isInitialized: false,
+
+            // Initialize auth state
+            initialize: () => {
+                const { token } = get();
+                if (token) {
+                    // Restore token in axios headers
+                    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+                }
+                set({ isInitialized: true });
+            },
 
             // Login
             login: async (credentials) => {
@@ -95,22 +106,26 @@ const useAuthStore = create(
             checkAuth: async () => {
                 const { token } = get();
                 if (!token) {
-                    set({ isAuthenticated: false });
+                    set({ isAuthenticated: false, isInitialized: true });
                     return;
                 }
 
                 try {
+                    // Ensure token is set in headers
                     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
                     const response = await axios.get('/api/auth/me');
                     set({
                         user: response.data.user,
-                        isAuthenticated: true
+                        isAuthenticated: true,
+                        isInitialized: true
                     });
                 } catch (error) {
+                    console.error('Auth check failed:', error);
                     set({
                         user: null,
                         token: null,
-                        isAuthenticated: false
+                        isAuthenticated: false,
+                        isInitialized: true
                     });
                     delete axios.defaults.headers.common['Authorization'];
                 }
@@ -125,7 +140,14 @@ const useAuthStore = create(
                 user: state.user,
                 token: state.token,
                 isAuthenticated: state.isAuthenticated
-            })
+            }),
+            onRehydrateStorage: () => (state) => {
+                // This runs after the store is rehydrated from localStorage
+                if (state && state.token) {
+                    // Restore token in axios headers
+                    axios.defaults.headers.common['Authorization'] = `Bearer ${state.token}`;
+                }
+            }
         }
     )
 );

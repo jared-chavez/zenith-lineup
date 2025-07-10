@@ -56,8 +56,8 @@ class HabitLog extends Model
         return [
             'habit_id' => ['required', 'exists:habits,id'],
             'log_date' => ['required', 'date', 'before_or_equal:today'],
-            'data' => ['required', 'array'],
-            'status' => ['required', Rule::in(['completed', 'partial', 'missed'])],
+            // 'data' => ['required', 'array'],
+            // 'status' => ['required', Rule::in(['completed', 'partial', 'missed'])],
             'notes' => ['nullable', 'string', 'max:1000'],
             'metadata' => ['nullable', 'array'],
         ];

@@ -35,10 +35,22 @@ const Habits = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
+            // Normalizar valores nulos/vacíos y formato reminder_time
+            let reminderTime = formData.reminder_time;
+            if (reminderTime && /^\d{2}:\d{2}$/.test(reminderTime)) {
+                reminderTime = reminderTime + ':00';
+            }
+            const payload = {
+                ...formData,
+                reminder_time: reminderTime || null,
+                target_goals: Array.isArray(formData.target_goals)
+                    ? formData.target_goals.filter(goal => goal && goal.trim() !== '')
+                    : [],
+            };
             if (editingHabit) {
-                await axios.put(`/api/habits/${editingHabit.id}`, formData);
+                await axios.put(`/api/habits/${editingHabit.id}`, payload);
             } else {
-                await axios.post('/api/habits', formData);
+                await axios.post('/api/habits', payload);
             }
             setShowCreateModal(false);
             setEditingHabit(null);
@@ -116,6 +128,8 @@ const Habits = () => {
         );
     }
 
+    console.log('Rendering Habits component, habits state:', habits);
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -180,6 +194,17 @@ const Habits = () => {
                                     <p className="text-sm text-gray-500 mb-4 line-clamp-2">
                                         {habit.description}
                                     </p>
+                                )}
+
+                                {habit.reminder_time && (
+                                    <div className="text-xs text-gray-500 mb-2">
+                                        ⏰ Recordatorio: {habit.reminder_time}
+                                    </div>
+                                )}
+                                {habit.target_goals && habit.target_goals.length > 0 && (
+                                    <div className="text-xs text-gray-500 mb-2">
+                                        🎯 Metas: {habit.target_goals.join(', ')}
+                                    </div>
                                 )}
 
                                 <div className="flex items-center justify-between mb-4">
@@ -265,6 +290,29 @@ const Habits = () => {
                                         value={formData.description}
                                         onChange={(e) => setFormData({...formData, description: e.target.value})}
                                         rows={3}
+                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Hora de recordatorio
+                                    </label>
+                                    <input
+                                        type="time"
+                                        value={formData.reminder_time || ''}
+                                        onChange={e => setFormData({ ...formData, reminder_time: e.target.value })}
+                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Metas/Objetivos (separados por coma)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.target_goals.join(', ')}
+                                        onChange={e => setFormData({ ...formData, target_goals: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
                                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                                     />
                                 </div>

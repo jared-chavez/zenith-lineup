@@ -106,10 +106,30 @@ const Dashboard = () => {
                             <div className="ml-5 w-0 flex-1">
                                 <dl>
                                     <dt className="text-sm font-medium text-gray-500 truncate">
-                                        Total de hábitos
+                                        Total hábitos
                                     </dt>
                                     <dd className="text-lg font-medium text-gray-900">
                                         {stats.totalHabits}
+                                    </dd>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white overflow-hidden shadow rounded-lg">
+                    <div className="p-5">
+                        <div className="flex items-center">
+                            <div className="flex-shrink-0">
+                                <TrendingUp className="h-6 w-6 text-gray-400" />
+                            </div>
+                            <div className="ml-5 w-0 flex-1">
+                                <dl>
+                                    <dt className="text-sm font-medium text-gray-500 truncate">
+                                        Progreso semanal
+                                    </dt>
+                                    <dd className="text-lg font-medium text-gray-900">
+                                        {stats.weeklyProgress}%
                                     </dd>
                                 </dl>
                             </div>
@@ -150,26 +170,6 @@ const Dashboard = () => {
                                     </dt>
                                     <dd className="text-lg font-medium text-gray-900">
                                         {stats.todayLogs}
-                                    </dd>
-                                </dl>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white overflow-hidden shadow rounded-lg">
-                    <div className="p-5">
-                        <div className="flex items-center">
-                            <div className="flex-shrink-0">
-                                <TrendingUp className="h-6 w-6 text-gray-400" />
-                            </div>
-                            <div className="ml-5 w-0 flex-1">
-                                <dl>
-                                    <dt className="text-sm font-medium text-gray-500 truncate">
-                                        Progreso semanal
-                                    </dt>
-                                    <dd className="text-lg font-medium text-gray-900">
-                                        {stats.weeklyProgress}%
                                     </dd>
                                 </dl>
                             </div>
@@ -219,13 +219,15 @@ const Dashboard = () => {
                                         {habit.description || 'Sin descripción'}
                                     </p>
                                     <div className="flex items-center justify-between">
-                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                            habit.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                            habit.is_active 
+                                                ? 'bg-green-100 text-green-800' 
+                                                : 'bg-gray-100 text-gray-800'
                                         }`}>
                                             {habit.is_active ? 'Activo' : 'Inactivo'}
                                         </span>
                                         <Link
-                                            to={`/habits/${habit.id}`}
+                                            to={`/habits`}
                                             className="text-sm text-blue-600 hover:text-blue-500"
                                         >
                                             Ver detalles →
@@ -238,19 +240,28 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            {/* Recent Activity */}
+            {/* Recent Logs */}
             <div className="bg-white shadow rounded-lg">
                 <div className="px-6 py-4 border-b border-gray-200">
-                    <h3 className="text-lg font-medium text-gray-900">Actividad reciente</h3>
+                    <h3 className="text-lg font-medium text-gray-900">Registros recientes</h3>
                 </div>
                 <div className="p-6">
                     {recentLogs.length === 0 ? (
                         <div className="text-center py-8">
                             <Calendar className="mx-auto h-12 w-12 text-gray-400" />
-                            <h3 className="mt-2 text-sm font-medium text-gray-900">No hay actividad</h3>
+                            <h3 className="mt-2 text-sm font-medium text-gray-900">No hay registros</h3>
                             <p className="mt-1 text-sm text-gray-500">
-                                Comienza registrando tu progreso en tus hábitos.
+                                Comienza registrando tus hábitos para ver tu progreso.
                             </p>
+                            <div className="mt-6">
+                                <Link
+                                    to="/logs"
+                                    className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+                                >
+                                    <Plus className="h-4 w-4 mr-2" />
+                                    Ver registros
+                                </Link>
+                            </div>
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -274,12 +285,11 @@ const Dashboard = () => {
                                     </div>
                                     <div className="flex-shrink-0">
                                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                            log.status === 'completed' ? 'bg-green-100 text-green-800' :
-                                            log.status === 'partial' ? 'bg-yellow-100 text-yellow-800' :
-                                            'bg-red-100 text-red-800'
+                                            log.completed 
+                                                ? 'bg-green-100 text-green-800' 
+                                                : 'bg-red-100 text-red-800'
                                         }`}>
-                                            {log.status === 'completed' ? 'Completado' :
-                                             log.status === 'partial' ? 'Parcial' : 'Pendiente'}
+                                            {log.completed ? 'Completado' : 'Pendiente'}
                                         </span>
                                     </div>
                                 </div>
