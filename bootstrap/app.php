@@ -22,6 +22,11 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\RateLimiting::class,
             \App\Http\Middleware\ValidateJsonRequest::class,
         ]);
+        
+        // Register custom middleware aliases
+        $middleware->alias([
+            'is_admin' => \App\Http\Middleware\IsAdmin::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

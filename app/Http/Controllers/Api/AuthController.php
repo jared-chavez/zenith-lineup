@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\TwoFactorController;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -100,6 +101,27 @@ class AuthController extends Controller
         }
 
         $user = Auth::user();
+        
+        // Check if 2FA is enabled
+        if ($user->two_factor_enabled) {
+            // Send 2FA code
+            $twoFactorController = new \App\Http\Controllers\Api\TwoFactorController();
+            $twoFactorController->sendCode($request);
+            
+            // Logout user temporarily
+            Auth::logout();
+            
+            Log::info('2FA required for login', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'ip' => $request->ip()
+            ]);
+
+            return response()->json([
+                'message' => '2FA code sent to your email',
+                'requires_2fa' => true
+            ]);
+        }
         
         // Actualizar información de último login
         $user->update([

@@ -13,13 +13,33 @@ const useAuthStore = create(
             isInitialized: false,
 
             // Initialize auth state
-            initialize: () => {
+            initialize: async () => {
                 const { token } = get();
                 if (token) {
                     // Restore token in axios headers
                     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+                    try {
+                        // Verifica si el token es válido
+                        const response = await axios.get('/api/auth/me');
+                        set({
+                            user: response.data.user,
+                            isAuthenticated: true,
+                            isInitialized: true
+                        });
+                    } catch (error) {
+                        // Token inválido: limpiar todo
+                        localStorage.clear();
+                        set({
+                            user: null,
+                            token: null,
+                            isAuthenticated: false,
+                            isInitialized: true
+                        });
+                        delete axios.defaults.headers.common['Authorization'];
+                    }
+                } else {
+                    set({ isInitialized: true, isAuthenticated: false });
                 }
-                set({ isInitialized: true });
             },
 
             // Login
@@ -27,6 +47,17 @@ const useAuthStore = create(
                 set({ isLoading: true, error: null });
                 try {
                     const response = await axios.post('/api/auth/login', credentials);
+                    
+                    // Check if 2FA is required
+                    if (response.data.requires_2fa) {
+                        set({ isLoading: false });
+                        return { 
+                            success: false, 
+                            requires2FA: true, 
+                            email: credentials.email 
+                        };
+                    }
+                    
                     const { user, token } = response.data;
                     
                     set({
@@ -43,6 +74,39 @@ const useAuthStore = create(
                     return { success: true };
                 } catch (error) {
                     const message = error.response?.data?.message || 'Login failed';
+                    set({
+                        isLoading: false,
+                        error: message
+                    });
+                    return { success: false, error: message };
+                }
+            },
+
+            // Complete 2FA login
+            complete2FALogin: async (email, code) => {
+                set({ isLoading: true, error: null });
+                try {
+                    const response = await axios.post('/api/auth/2fa/verify', {
+                        email,
+                        code
+                    });
+                    
+                    const { user, token } = response.data;
+                    
+                    set({
+                        user,
+                        token,
+                        isAuthenticated: true,
+                        isLoading: false,
+                        error: null
+                    });
+
+                    // Set token for future requests
+                    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+                    
+                    return { success: true };
+                } catch (error) {
+                    const message = error.response?.data?.message || '2FA verification failed';
                     set({
                         isLoading: false,
                         error: message

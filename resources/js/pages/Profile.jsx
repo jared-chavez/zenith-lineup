@@ -1,13 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { Save, User, Loader2 } from 'lucide-react';
+import { Save, User, Loader2, Shield, Settings, Heart, Target } from 'lucide-react';
 import axios from 'axios';
+import TwoFactorManagement from '../components/TwoFactorManagement';
+import useNotificationStore from '../stores/notificationStore';
+import useErrorHandler from '../hooks/useErrorHandler';
 
 const Profile = () => {
     const [profile, setProfile] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [message, setMessage] = useState('');
+    // Remove message state
+    // const [message, setMessage] = useState('');
+
+    const notificationStore = useNotificationStore();
+    const { handleError, handleValidationError } = useErrorHandler();
 
     const {
         register,
@@ -21,12 +28,13 @@ const Profile = () => {
     }, []);
 
     const fetchProfile = async () => {
+        setIsLoading(true);
         try {
             const response = await axios.get('/api/profile');
             setProfile(response.data.profile);
             reset(response.data.profile);
         } catch (error) {
-            console.error('Error fetching profile:', error);
+            handleError(error, 'fetchProfile');
         } finally {
             setIsLoading(false);
         }
@@ -34,18 +42,17 @@ const Profile = () => {
 
     const onSubmit = async (data) => {
         setIsSaving(true);
-        setMessage('');
-        
+        // setMessage('');
         try {
             const response = await axios.put('/api/profile', data);
             setProfile(response.data.profile);
-            setMessage('Perfil actualizado correctamente');
-            
-            // Clear message after 3 seconds
-            setTimeout(() => setMessage(''), 3000);
+            notificationStore.success('Perfil actualizado correctamente', 'Éxito');
         } catch (error) {
-            console.error('Error updating profile:', error);
-            setMessage('Error al actualizar el perfil');
+            if (error.response?.status === 422 && error.response.data?.errors) {
+                handleValidationError(error.response.data.errors);
+            } else {
+                handleError(error, 'updateProfile');
+            }
         } finally {
             setIsSaving(false);
         }
@@ -54,46 +61,42 @@ const Profile = () => {
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                <div className="loading-spinner w-12 h-12"></div>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
-                    <User className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Mi Perfil</h1>
-                    <p className="text-gray-600">Gestiona tu información personal y preferencias</p>
+        <div className="space-y-8">
+            {/* Header - Fitia Style */}
+            <div className="layer-elevated animate-fade-in">
+                <div className="p-8 bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl">
+                    <div className="flex items-center space-x-4">
+                        <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center">
+                            <User className="h-8 w-8 text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-bold text-gradient-green mb-2">Mi Perfil</h1>
+                            <p className="text-gray-600 text-lg">Gestiona tu información personal y preferencias</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* Message */}
-            {message && (
-                <div className={`p-4 rounded-md ${
-                    message.includes('Error') 
-                        ? 'bg-red-50 border border-red-200 text-red-700' 
-                        : 'bg-green-50 border border-green-200 text-green-700'
-                }`}>
-                    {message}
-                </div>
-            )}
-
-            {/* Profile Form */}
-            <div className="bg-white shadow rounded-lg">
-                <div className="px-6 py-4 border-b border-gray-200">
-                    <h3 className="text-lg font-medium text-gray-900">Información Personal</h3>
+            {/* Profile Form - Fitia Style */}
+            <div className="layer-elevated animate-fade-in">
+                <div className="px-6 py-4 border-b border-gray-100">
+                    <div className="flex items-center">
+                        <Settings className="h-5 w-5 text-green-600 mr-2" />
+                        <h3 className="text-lg font-semibold text-gray-900">Información Personal</h3>
+                    </div>
                 </div>
                 
-                <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
+                <form onSubmit={handleSubmit(onSubmit)} className="p-8 space-y-8">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* First Name */}
                         <div>
-                            <label htmlFor="first_name" className="block text-sm font-medium text-gray-700">
+                            <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 mb-2">
                                 Nombre *
                             </label>
                             <input
@@ -106,18 +109,19 @@ const Profile = () => {
                                         message: 'El nombre no puede tener más de 50 caracteres'
                                     }
                                 })}
-                                className={`mt-1 block w-full border rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                                    errors.first_name ? 'border-red-300' : 'border-gray-300'
-                                }`}
+                                className={`input-fitia ${errors.first_name ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}`}
                             />
                             {errors.first_name && (
-                                <p className="mt-1 text-sm text-red-600">{errors.first_name.message}</p>
+                                <p className="mt-2 text-sm text-red-600 flex items-center">
+                                    <span className="w-1 h-1 bg-red-500 rounded-full mr-2"></span>
+                                    {errors.first_name.message}
+                                </p>
                             )}
                         </div>
 
                         {/* Last Name */}
                         <div>
-                            <label htmlFor="last_name" className="block text-sm font-medium text-gray-700">
+                            <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 mb-2">
                                 Apellido *
                             </label>
                             <input
@@ -130,18 +134,19 @@ const Profile = () => {
                                         message: 'El apellido no puede tener más de 50 caracteres'
                                     }
                                 })}
-                                className={`mt-1 block w-full border rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                                    errors.last_name ? 'border-red-300' : 'border-gray-300'
-                                }`}
+                                className={`input-fitia ${errors.last_name ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}`}
                             />
                             {errors.last_name && (
-                                <p className="mt-1 text-sm text-red-600">{errors.last_name.message}</p>
+                                <p className="mt-2 text-sm text-red-600 flex items-center">
+                                    <span className="w-1 h-1 bg-red-500 rounded-full mr-2"></span>
+                                    {errors.last_name.message}
+                                </p>
                             )}
                         </div>
 
                         {/* Birth Date */}
                         <div>
-                            <label htmlFor="birth_date" className="block text-sm font-medium text-gray-700">
+                            <label htmlFor="birth_date" className="block text-sm font-medium text-gray-700 mb-2">
                                 Fecha de nacimiento *
                             </label>
                             <input
@@ -150,18 +155,19 @@ const Profile = () => {
                                 {...register('birth_date', {
                                     required: 'La fecha de nacimiento es requerida'
                                 })}
-                                className={`mt-1 block w-full border rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                                    errors.birth_date ? 'border-red-300' : 'border-gray-300'
-                                }`}
+                                className={`input-fitia ${errors.birth_date ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}`}
                             />
                             {errors.birth_date && (
-                                <p className="mt-1 text-sm text-red-600">{errors.birth_date.message}</p>
+                                <p className="mt-2 text-sm text-red-600 flex items-center">
+                                    <span className="w-1 h-1 bg-red-500 rounded-full mr-2"></span>
+                                    {errors.birth_date.message}
+                                </p>
                             )}
                         </div>
 
                         {/* Gender */}
                         <div>
-                            <label htmlFor="gender" className="block text-sm font-medium text-gray-700">
+                            <label htmlFor="gender" className="block text-sm font-medium text-gray-700 mb-2">
                                 Género *
                             </label>
                             <select
@@ -169,9 +175,7 @@ const Profile = () => {
                                 {...register('gender', {
                                     required: 'El género es requerido'
                                 })}
-                                className={`mt-1 block w-full border rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                                    errors.gender ? 'border-red-300' : 'border-gray-300'
-                                }`}
+                                className={`input-fitia ${errors.gender ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}`}
                             >
                                 <option value="">Seleccionar género</option>
                                 <option value="male">Masculino</option>
@@ -179,13 +183,16 @@ const Profile = () => {
                                 <option value="other">Otro</option>
                             </select>
                             {errors.gender && (
-                                <p className="mt-1 text-sm text-red-600">{errors.gender.message}</p>
+                                <p className="mt-2 text-sm text-red-600 flex items-center">
+                                    <span className="w-1 h-1 bg-red-500 rounded-full mr-2"></span>
+                                    {errors.gender.message}
+                                </p>
                             )}
                         </div>
 
                         {/* Height */}
                         <div>
-                            <label htmlFor="height" className="block text-sm font-medium text-gray-700">
+                            <label htmlFor="height" className="block text-sm font-medium text-gray-700 mb-2">
                                 Altura (cm) *
                             </label>
                             <input
@@ -202,18 +209,19 @@ const Profile = () => {
                                         message: 'La altura no puede ser mayor a 300 cm'
                                     }
                                 })}
-                                className={`mt-1 block w-full border rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                                    errors.height ? 'border-red-300' : 'border-gray-300'
-                                }`}
+                                className={`input-fitia ${errors.height ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}`}
                             />
                             {errors.height && (
-                                <p className="mt-1 text-sm text-red-600">{errors.height.message}</p>
+                                <p className="mt-2 text-sm text-red-600 flex items-center">
+                                    <span className="w-1 h-1 bg-red-500 rounded-full mr-2"></span>
+                                    {errors.height.message}
+                                </p>
                             )}
                         </div>
 
                         {/* Weight */}
                         <div>
-                            <label htmlFor="weight" className="block text-sm font-medium text-gray-700">
+                            <label htmlFor="weight" className="block text-sm font-medium text-gray-700 mb-2">
                                 Peso (kg) *
                             </label>
                             <input
@@ -230,18 +238,19 @@ const Profile = () => {
                                         message: 'El peso no puede ser mayor a 500 kg'
                                     }
                                 })}
-                                className={`mt-1 block w-full border rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                                    errors.weight ? 'border-red-300' : 'border-gray-300'
-                                }`}
+                                className={`input-fitia ${errors.weight ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}`}
                             />
                             {errors.weight && (
-                                <p className="mt-1 text-sm text-red-600">{errors.weight.message}</p>
+                                <p className="mt-2 text-sm text-red-600 flex items-center">
+                                    <span className="w-1 h-1 bg-red-500 rounded-full mr-2"></span>
+                                    {errors.weight.message}
+                                </p>
                             )}
                         </div>
 
                         {/* Activity Level */}
                         <div>
-                            <label htmlFor="activity_level" className="block text-sm font-medium text-gray-700">
+                            <label htmlFor="activity_level" className="block text-sm font-medium text-gray-700 mb-2">
                                 Nivel de actividad *
                             </label>
                             <select
@@ -249,9 +258,7 @@ const Profile = () => {
                                 {...register('activity_level', {
                                     required: 'El nivel de actividad es requerido'
                                 })}
-                                className={`mt-1 block w-full border rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                                    errors.activity_level ? 'border-red-300' : 'border-gray-300'
-                                }`}
+                                className={`input-fitia ${errors.activity_level ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}`}
                             >
                                 <option value="">Seleccionar nivel</option>
                                 <option value="sedentary">Sedentario</option>
@@ -261,13 +268,16 @@ const Profile = () => {
                                 <option value="very_active">Muy activo</option>
                             </select>
                             {errors.activity_level && (
-                                <p className="mt-1 text-sm text-red-600">{errors.activity_level.message}</p>
+                                <p className="mt-2 text-sm text-red-600 flex items-center">
+                                    <span className="w-1 h-1 bg-red-500 rounded-full mr-2"></span>
+                                    {errors.activity_level.message}
+                                </p>
                             )}
                         </div>
 
                         {/* Timezone */}
                         <div>
-                            <label htmlFor="timezone" className="block text-sm font-medium text-gray-700">
+                            <label htmlFor="timezone" className="block text-sm font-medium text-gray-700 mb-2">
                                 Zona horaria *
                             </label>
                             <select
@@ -275,9 +285,7 @@ const Profile = () => {
                                 {...register('timezone', {
                                     required: 'La zona horaria es requerida'
                                 })}
-                                className={`mt-1 block w-full border rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                                    errors.timezone ? 'border-red-300' : 'border-gray-300'
-                                }`}
+                                className={`input-fitia ${errors.timezone ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}`}
                             >
                                 <option value="">Seleccionar zona horaria</option>
                                 <option value="America/Mexico_City">México (GMT-6)</option>
@@ -287,54 +295,63 @@ const Profile = () => {
                                 <option value="Europe/London">Londres (GMT+0)</option>
                             </select>
                             {errors.timezone && (
-                                <p className="mt-1 text-sm text-red-600">{errors.timezone.message}</p>
+                                <p className="mt-2 text-sm text-red-600 flex items-center">
+                                    <span className="w-1 h-1 bg-red-500 rounded-full mr-2"></span>
+                                    {errors.timezone.message}
+                                </p>
                             )}
                         </div>
                     </div>
 
                     {/* Health Goals */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Objetivos de salud
-                        </label>
-                        <div className="space-y-2">
+                    <div className="layer-surface p-6 rounded-xl">
+                        <div className="flex items-center mb-4">
+                            <Heart className="h-5 w-5 text-green-600 mr-2" />
+                            <label className="block text-sm font-medium text-gray-700">
+                                Objetivos de salud
+                            </label>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {['Perder peso', 'Ganar músculo', 'Mejorar resistencia', 'Reducir estrés', 'Dormir mejor'].map((goal) => (
-                                <label key={goal} className="flex items-center">
+                                <label key={goal} className="flex items-center p-3 bg-gradient-green rounded-lg hover:bg-gradient-to-r hover:from-green-100 hover:to-emerald-100 transition-colors cursor-pointer">
                                     <input
                                         type="checkbox"
                                         value={goal}
                                         {...register('health_goals')}
-                                        className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                                        className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
                                     />
-                                    <span className="ml-2 text-sm text-gray-700">{goal}</span>
+                                    <span className="ml-3 text-sm text-gray-700">{goal}</span>
                                 </label>
                             ))}
                         </div>
                     </div>
 
                     {/* Preferences */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Preferencias
-                            </label>
-                            <div className="space-y-3">
-                                <label className="flex items-center">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="layer-surface p-6 rounded-xl">
+                            <div className="flex items-center mb-4">
+                                <Settings className="h-5 w-5 text-green-600 mr-2" />
+                                <label className="block text-sm font-medium text-gray-700">
+                                    Preferencias
+                                </label>
+                            </div>
+                            <div className="space-y-4">
+                                <label className="flex items-center p-3 bg-gradient-green rounded-lg hover:bg-gradient-to-r hover:from-green-100 hover:to-emerald-100 transition-colors cursor-pointer">
                                     <input
                                         type="checkbox"
                                         {...register('preferences.notifications')}
-                                        className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                                        className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
                                     />
-                                    <span className="ml-2 text-sm text-gray-700">Recibir notificaciones</span>
+                                    <span className="ml-3 text-sm text-gray-700">Recibir notificaciones</span>
                                 </label>
                                 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
                                         Tema
                                     </label>
                                     <select
                                         {...register('preferences.theme')}
-                                        className="block w-full border-gray-300 rounded-md shadow-sm px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                        className="input-fitia"
                                     >
                                         <option value="light">Claro</option>
                                         <option value="dark">Oscuro</option>
@@ -343,37 +360,50 @@ const Profile = () => {
                             </div>
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Privacidad
-                            </label>
-                            <label className="flex items-center">
+                        <div className="layer-surface p-6 rounded-xl">
+                            <div className="flex items-center mb-4">
+                                <Shield className="h-5 w-5 text-green-600 mr-2" />
+                                <label className="block text-sm font-medium text-gray-700">
+                                    Privacidad
+                                </label>
+                            </div>
+                            <label className="flex items-center p-3 bg-gradient-green rounded-lg hover:bg-gradient-to-r hover:from-green-100 hover:to-emerald-100 transition-colors cursor-pointer">
                                 <input
                                     type="checkbox"
                                     {...register('is_profile_public')}
-                                    className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                                    className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
                                 />
-                                <span className="ml-2 text-sm text-gray-700">Perfil público</span>
+                                <span className="ml-3 text-sm text-gray-700">Perfil público</span>
                             </label>
                         </div>
                     </div>
 
                     {/* Submit Button */}
-                    <div className="flex justify-end">
+                    <div className="flex justify-end pt-6 border-t border-gray-100">
                         <button
                             type="submit"
                             disabled={isSaving}
-                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="btn-primary"
                         >
                             {isSaving ? (
-                                <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                                <div className="flex items-center">
+                                    <div className="loading-spinner w-4 h-4 mr-2"></div>
+                                    Guardando...
+                                </div>
                             ) : (
-                                <Save className="h-4 w-4 mr-2" />
+                                <>
+                                    <Save className="h-4 w-4 mr-2" />
+                                    Guardar cambios
+                                </>
                             )}
-                            {isSaving ? 'Guardando...' : 'Guardar cambios'}
                         </button>
                     </div>
                 </form>
+            </div>
+
+            {/* Two-Factor Authentication */}
+            <div className="animate-fade-in">
+                <TwoFactorManagement />
             </div>
         </div>
     );

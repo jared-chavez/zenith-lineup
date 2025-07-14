@@ -2,7 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 
-// Serve React SPA for all frontend routes (excluding API routes)
+// Catch-all para servir la SPA de React (excepto rutas de API)
 Route::get('/{any}', function () {
-    return view('app');
+    return view('welcome');
 })->where('any', '^(?!api).*$');

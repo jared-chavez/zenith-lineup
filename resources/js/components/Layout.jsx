@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LogOut, Home, Target, User, Menu, X, Activity } from 'lucide-react';
+import { LogOut, Home, Target, User, Menu, X, Activity, Shield } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import { useState } from 'react';
 
@@ -15,6 +15,11 @@ const Layout = () => {
         { name: 'Registros', href: '/logs', icon: Activity },
         { name: 'Perfil', href: '/profile', icon: User },
     ];
+
+    // Add admin navigation for admin users
+    const adminNavigation = user?.role === 'admin' ? [
+        { name: 'Admin', href: '/admin', icon: Shield },
+    ] : [];
 
     const handleLogout = async () => {
         await logout();
@@ -67,6 +72,35 @@ const Layout = () => {
                                 </Link>
                             );
                         })}
+                        
+                        {/* Admin navigation separator */}
+                        {adminNavigation.length > 0 && (
+                            <div className="pt-4 border-t border-gray-200">
+                                <p className="px-4 text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+                                    Administración
+                                </p>
+                                {adminNavigation.map((item) => {
+                                    const Icon = item.icon;
+                                    return (
+                                        <Link
+                                            key={item.name}
+                                            to={item.href}
+                                            className={`
+                                                flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors
+                                                ${isActive(item.href)
+                                                    ? 'bg-red-100 text-red-700'
+                                                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                                                }
+                                            `}
+                                            onClick={() => setIsMobileMenuOpen(false)}
+                                        >
+                                            <Icon size={20} className="mr-3" />
+                                            {item.name}
+                                        </Link>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </nav>
 
                     {/* User info and logout */}

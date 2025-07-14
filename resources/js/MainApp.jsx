@@ -8,7 +8,13 @@ import Dashboard from './pages/Dashboard';
 import Habits from './pages/Habits';
 import Logs from './pages/Logs';
 import Profile from './pages/Profile';
+import AdminDashboard from './pages/admin/AdminDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
+import ProtectedAdminRoute from './components/ProtectedAdminRoute';
+import NotificationContainer from './components/NotificationContainer';
+import Home from './pages/Home';
+import Terms from './pages/Terms';
+import Privacy from './pages/Privacy';
 
 function App() {
     const { isAuthenticated, isInitialized, initialize } = useAuthStore();
@@ -30,7 +36,13 @@ function App() {
     return (
         <BrowserRouter>
             <div className="min-h-screen bg-gray-50">
+                {/* Global Notification Container */}
+                <NotificationContainer />
+                
                 <Routes>
+                    {/* Home route: si no autenticado muestra Home, si autenticado redirige a dashboard */}
+                    <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Home />} />
+
                     {/* Public routes */}
                     <Route 
                         path="/login" 
@@ -41,17 +53,30 @@ function App() {
                         element={isAuthenticated ? <Navigate to="/dashboard" /> : <Register />} 
                     />
 
-                    {/* Protected routes */}
-                    <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-                        <Route index element={<Navigate to="/dashboard" />} />
+                    {/* Legal pages */}
+                    <Route path="/terminos" element={<Terms />} />
+                    <Route path="/privacidad" element={<Privacy />} />
+
+                    {/* Protected routes (solo rutas internas) */}
+                    <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                         <Route path="dashboard" element={<Dashboard />} />
                         <Route path="habits" element={<Habits />} />
                         <Route path="logs" element={<Logs />} />
                         <Route path="profile" element={<Profile />} />
                     </Route>
 
+                    {/* Admin routes */}
+                    <Route 
+                        path="/admin" 
+                        element={
+                            <ProtectedAdminRoute>
+                                <AdminDashboard />
+                            </ProtectedAdminRoute>
+                        } 
+                    />
+
                     {/* Fallback */}
-                    <Route path="*" element={<Navigate to="/dashboard" />} />
+                    <Route path="*" element={<Navigate to="/" />} />
                 </Routes>
             </div>
         </BrowserRouter>
