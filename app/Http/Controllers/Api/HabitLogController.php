@@ -17,11 +17,17 @@ class HabitLogController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        
-        $logs = $user->habitLogs()
-            ->with('habit')
-            ->orderBy('log_date', 'desc')
-            ->paginate(20);
+
+        $query = $user->habitLogs()->with('habit');
+
+        if ($request->filled('date')) {
+            $query->whereDate('log_date', $request->input('date'));
+        }
+        if ($request->filled('habit_id')) {
+            $query->where('habit_id', $request->input('habit_id'));
+        }
+
+        $logs = $query->orderBy('log_date', 'desc')->paginate(20);
 
         return response()->json([
             'logs' => $logs
