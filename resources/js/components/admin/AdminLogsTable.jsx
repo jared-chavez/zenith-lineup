@@ -1,42 +1,84 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Search, Edit, Trash2, Filter, Calendar, CheckCircle, XCircle, Clock, FileText, User, Target } from "lucide-react";
+import { Search, Edit, Trash2, Filter, Calendar, CheckCircle, XCircle, Clock, FileText, User, Target, Eye, RefreshCw, X } from "lucide-react";
 import useNotificationStore from "../../stores/notificationStore";
 import useErrorHandler from "../../hooks/useErrorHandler";
+import useAuthStore from "../../stores/authStore";
+import useAdminFilters from "../../hooks/useAdminFilters";
 import ConfirmModal from "../ConfirmModal";
 
 const AdminLogsTable = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
   const [editingLog, setEditingLog] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [viewingLog, setViewingLog] = useState(null);
   const [logToDelete, setLogToDelete] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalLogs, setTotalLogs] = useState(0);
+  const [logsPerPage] = useState(10);
+  const [editForm, setEditForm] = useState({
+    log_date: '',
+    status: 'completed',
+    notes: '',
+    completed_at: ''
+  });
 
   const { success } = useNotificationStore();
   const { handleError } = useErrorHandler();
+  const { token } = useAuthStore();
+
+  // Usar el hook de filtros
+  const {
+    filters,
+    setFilters,
+    debouncedFilters,
+    resetFilters,
+    filterOptions
+  } = useAdminFilters({
+    search: '',
+    status: '',
+    habit_type: '',
+    user_id: '',
+    date_from: '',
+    date_to: '',
+    sort_by: 'created_at',
+    sort_order: 'desc'
+  });
 
   useEffect(() => {
     fetchLogs();
-  }, []);
+  }, [debouncedFilters, currentPage]);
 
   const fetchLogs = async () => {
     try {
-      const token = localStorage.getItem("token");
+      setLoading(true);
+      
       const response = await axios.get("/api/admin/logs", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
         params: {
-          search: searchTerm,
-          status: statusFilter,
-          date: dateFilter,
+          ...debouncedFilters,
+          page: currentPage,
+          per_page: logsPerPage,
         },
       });
-      setLogs(response.data.logs || []);
+      
+      // Manejar respuesta paginada
+      if (response.data.logs && response.data.logs.data) {
+        setLogs(response.data.logs.data || []);
+        setTotalPages(response.data.logs.last_page || 1);
+        setTotalLogs(response.data.logs.total || 0);
+      } else {
+        setLogs(response.data.logs || []);
+        setTotalPages(1);
+        setTotalLogs(response.data.logs?.length || 0);
+      }
+      
     } catch (err) {
       handleError(err, 'fetching logs');
     } finally {
@@ -46,6 +88,12 @@ const AdminLogsTable = () => {
 
   const handleEdit = (log) => {
     setEditingLog(log);
+    setEditForm({
+      log_date: log.log_date ? log.log_date.split('T')[0] : '',
+      status: log.status || 'completed',
+      notes: log.notes || '',
+      completed_at: log.completed_at ? log.completed_at.split('T')[0] : ''
+    });
     setShowEditModal(true);
   };
 
@@ -54,9 +102,20 @@ const AdminLogsTable = () => {
     setShowDeleteModal(true);
   };
 
+  const handleView = (log) => {
+    setViewingLog(log);
+    setShowViewModal(true);
+  };
+
+  const handleEditFormChange = (field, value) => {
+    setEditForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
   const confirmDelete = async () => {
     try {
-      const token = localStorage.getItem("token");
       await axios.delete(`/api/admin/logs/${logToDelete.id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -72,21 +131,25 @@ const AdminLogsTable = () => {
     }
   };
 
-  const handleSaveEdit = async (logData) => {
+  const handleSaveEdit = async () => {
     try {
-      const token = localStorage.getItem("token");
-      await axios.put(`/api/admin/logs/${editingLog.id}`, logData, {
+      await axios.put(`/api/admin/logs/${editingLog.id}`, editForm, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
       setShowEditModal(false);
       setEditingLog(null);
+      setEditForm({ log_date: '', status: 'completed', notes: '', completed_at: '' });
       success('Registro actualizado correctamente');
       fetchLogs();
     } catch (err) {
       handleError(err, 'updating log');
     }
+  };
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
   };
 
   const getStatusIcon = (status) => {
@@ -112,319 +175,431 @@ const AdminLogsTable = () => {
     return labels[status] || status;
   };
 
-  const getStatusColor = (status) => {
-    const colors = {
-      'completed': 'badge-success',
-      'missed': 'badge-danger',
-      'partial': 'badge-warning',
-      'pending': 'badge-secondary'
+  const getStatusClass = (status) => {
+    const classes = {
+      'completed': 'admin-logs-status-completed',
+      'missed': 'admin-logs-status-missed',
+      'partial': 'admin-logs-status-partial',
+      'pending': 'admin-logs-status-pending'
     };
-    return colors[status] || 'badge-secondary';
+    return classes[status] || 'admin-logs-status-pending';
   };
-
-  const filteredLogs = logs.filter((log) => {
-    const matchesSearch = log.habit?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         log.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         log.notes?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = !statusFilter || log.status === statusFilter;
-    const matchesDate = !dateFilter || log.log_date === dateFilter;
-    return matchesSearch && matchesStatus && matchesDate;
-  });
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <div className="loading-spinner w-8 h-8"></div>
+      <div className="admin-logs-container">
+        <div className="admin-logs-loading">
+          <div className="admin-logs-loading-spinner"></div>
+          Cargando registros...
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Filters - Fitia Style */}
-      <div className="layer-elevated animate-fade-in">
-        <div className="p-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type="text"
-                  placeholder="Buscar registros por hábito, usuario o notas..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="input-modern w-full pl-10 pr-4"
-                />
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="input-modern"
-              >
-                <option value="">Todos los estados</option>
-                <option value="completed">Completado</option>
-                <option value="missed">Perdido</option>
-                <option value="partial">Parcial</option>
-                <option value="pending">Pendiente</option>
-              </select>
-              <input
-                type="date"
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-                className="input-modern"
-              />
-              <button
-                onClick={fetchLogs}
-                className="btn-primary layer-pressable"
-              >
-                <Filter size={18} />
-                Filtrar
-              </button>
-            </div>
-          </div>
+    <div className="admin-logs-container">
+      {/* Header */}
+      <div className="admin-logs-header">
+        <h2 className="admin-logs-title">Registros de Actividad</h2>
+        <p className="admin-logs-subtitle">
+          Gestiona y supervisa todos los registros de hábitos de los usuarios ({totalLogs} registros)
+        </p>
+        
+        {/* Actions */}
+        <div className="admin-logs-filters">
+          <button
+            onClick={fetchLogs}
+            disabled={loading}
+            className="admin-logs-btn admin-logs-btn-primary"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Actualizar
+          </button>
         </div>
       </div>
 
-      {/* Logs Table - Fitia Style */}
-      <div className="layer-elevated animate-fade-in">
-        <div className="overflow-hidden rounded-xl">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gradient-to-r from-green-50 to-emerald-50">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <FileText className="h-4 w-4 mr-2 text-green-600" />
-                      Registro
+      {/* Filters */}
+      <div className="admin-logs-filters">
+        <div className="admin-logs-search">
+          <Search className="admin-logs-search-icon" />
+          <input
+            type="text"
+            placeholder="Buscar registros por hábito, usuario o notas..."
+            value={filters.search}
+            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+          />
+        </div>
+        
+        <select
+          className="admin-logs-select"
+          value={filters.status}
+          onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+        >
+          <option value="">Todos los estados</option>
+          <option value="completed">Completado</option>
+          <option value="missed">Perdido</option>
+          <option value="partial">Parcial</option>
+          <option value="pending">Pendiente</option>
+        </select>
+
+        <select
+          className="admin-logs-select"
+          value={filters.habit_type}
+          onChange={(e) => setFilters({ ...filters, habit_type: e.target.value })}
+        >
+          <option value="">Todos los tipos</option>
+          <option value="exercise">Ejercicio</option>
+          <option value="nutrition">Nutrición</option>
+          <option value="sleep">Sueño</option>
+          <option value="water">Agua</option>
+          <option value="meditation">Meditación</option>
+        </select>
+
+        <input
+          type="date"
+          className="admin-logs-date"
+          value={filters.date_from}
+          onChange={(e) => setFilters({ ...filters, date_from: e.target.value })}
+          placeholder="Desde"
+        />
+
+        <input
+          type="date"
+          className="admin-logs-date"
+          value={filters.date_to}
+          onChange={(e) => setFilters({ ...filters, date_to: e.target.value })}
+          placeholder="Hasta"
+        />
+
+        <select
+          className="admin-logs-select"
+          value={filters.sort_by}
+          onChange={(e) => setFilters({ ...filters, sort_by: e.target.value })}
+        >
+          <option value="created_at">Fecha de creación</option>
+          <option value="log_date">Fecha del registro</option>
+          <option value="status">Estado</option>
+          <option value="habit_id">Hábito</option>
+        </select>
+
+        <select
+          className="admin-logs-select"
+          value={filters.sort_order}
+          onChange={(e) => setFilters({ ...filters, sort_order: e.target.value })}
+        >
+          <option value="desc">Descendente</option>
+          <option value="asc">Ascendente</option>
+        </select>
+        
+        <button
+          onClick={resetFilters}
+          className="admin-logs-btn admin-logs-btn-secondary"
+        >
+          Limpiar
+        </button>
+      </div>
+
+      {/* Table Content */}
+      <div className="admin-logs-content">
+        {logs.length === 0 ? (
+          <div className="admin-logs-empty">
+            <div className="admin-logs-empty-icon">
+              <FileText className="h-8 w-8" />
+            </div>
+            <h3 className="admin-logs-empty-title">No se encontraron registros</h3>
+            <p className="admin-logs-empty-desc">
+              Intenta ajustar los filtros de búsqueda
+            </p>
+          </div>
+        ) : (
+          <table className="admin-logs-table">
+            <thead>
+              <tr>
+                <th>Usuario</th>
+                <th>Hábito</th>
+                <th>Fecha</th>
+                <th>Estado</th>
+                <th>Notas</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.map((log) => (
+                <tr key={log.id}>
+                  <td>
+                    <div className="admin-logs-user-info">
+                      <div className="admin-logs-user-name">
+                        {log.habit?.user?.name || 'Usuario no encontrado'}
+                      </div>
+                      <div className="admin-logs-user-email">
+                        {log.habit?.user?.email || 'Email no disponible'}
+                      </div>
                     </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <User className="h-4 w-4 mr-2 text-green-600" />
-                      Usuario
+                  </td>
+                  <td>
+                    <div className="admin-logs-habit-info">
+                      <div className="admin-logs-habit-name">
+                        {log.habit?.name || 'Hábito no encontrado'}
+                      </div>
+                      <div className="admin-logs-habit-type">
+                        {log.habit?.type || 'Tipo no disponible'}
+                      </div>
                     </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <Target className="h-4 w-4 mr-2 text-green-600" />
-                      Hábito
+                  </td>
+                  <td>
+                    <div className="admin-logs-date-info">
+                      {new Date(log.log_date).toLocaleDateString()}
                     </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Estado
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <Calendar className="h-4 w-4 mr-2 text-green-600" />
-                      Fecha
+                  </td>
+                  <td>
+                    <span className={`admin-logs-status ${getStatusClass(log.status)}`}>
+                      {getStatusIcon(log.status)}
+                      {getStatusLabel(log.status)}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="admin-logs-notes">
+                      {log.notes || 'Sin notas'}
                     </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Datos
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Acciones
-                  </th>
+                  </td>
+                  <td>
+                    <div className="admin-logs-actions">
+                      <button
+                        onClick={() => handleEdit(log)}
+                        className="admin-logs-action-btn admin-logs-action-btn-edit"
+                        title="Editar"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(log)}
+                        className="admin-logs-action-btn admin-logs-action-btn-delete"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleView(log)}
+                        className="admin-logs-action-btn admin-logs-action-btn-view"
+                        title="Ver detalles"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-100">
-                {filteredLogs.map((log, index) => (
-                  <tr 
-                    key={log.id} 
-                    className="layer-surface layer-interactive animate-fade-in hover:shadow-md transition-all duration-200"
-                    style={{ animationDelay: `${index * 0.05}s` }}
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-xl flex items-center justify-center">
-                          <FileText className="h-5 w-5 text-white" />
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-semibold text-gray-900">#{log.id}</div>
-                          <div className="text-sm text-gray-600">{log.notes || 'Sin notas'}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{log.user?.name || 'N/A'}</div>
-                      <div className="text-sm text-gray-600">{log.user?.email || 'N/A'}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{log.habit?.name || 'N/A'}</div>
-                      <div className="text-sm text-gray-600">{log.habit?.type || 'N/A'}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        {getStatusIcon(log.status)}
-                        <span className={`badge-modern ml-2 ${getStatusColor(log.status)}`}>
-                          {getStatusLabel(log.status)}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {new Date(log.log_date).toLocaleDateString('es-ES', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-700">
-                        {log.data ? (
-                          <div className="space-y-1">
-                            {Object.entries(JSON.parse(log.data)).map(([key, value]) => (
-                              <div key={key} className="text-xs">
-                                <span className="font-medium">{key}:</span> {value}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-gray-400">Sin datos</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => handleEdit(log)}
-                          className="btn-icon btn-ghost layer-pressable"
-                          title="Editar registro"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(log)}
-                          className="btn-icon btn-danger layer-pressable"
-                          title="Eliminar registro"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          
-          {filteredLogs.length === 0 && (
-            <div className="text-center py-12">
-              <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500 text-lg">No se encontraron registros</p>
-              <p className="text-gray-400 text-sm">Intenta ajustar los filtros de búsqueda</p>
-            </div>
-          )}
-        </div>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
-      {/* Edit Modal - Fitia Style */}
-      {showEditModal && editingLog && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <div className="flex items-center">
-                <Edit className="h-5 w-5 text-green-600 mr-2" />
-                <h3 className="text-lg font-semibold text-gray-900">Editar Registro</h3>
-              </div>
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="btn-icon btn-ghost"
-              >
-                ×
-              </button>
-            </div>
-            
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              const formData = new FormData(e.target);
-              handleSaveEdit({
-                status: formData.get('status'),
-                notes: formData.get('notes'),
-                data: formData.get('data'),
-                log_date: formData.get('log_date'),
-              });
-            }}>
-              <div className="space-y-4">
-                <div>
-                  <label className="label-modern">Estado</label>
-                  <select
-                    name="status"
-                    defaultValue={editingLog.status}
-                    className="input-modern w-full"
-                  >
-                    <option value="completed">Completado</option>
-                    <option value="missed">Perdido</option>
-                    <option value="partial">Parcial</option>
-                    <option value="pending">Pendiente</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label-modern">Notas</label>
-                  <textarea
-                    name="notes"
-                    defaultValue={editingLog.notes}
-                    className="input-modern w-full"
-                    rows="3"
-                    placeholder="Notas adicionales sobre el registro..."
-                  />
-                </div>
-                <div>
-                  <label className="label-modern">Datos (JSON)</label>
-                  <textarea
-                    name="data"
-                    defaultValue={editingLog.data}
-                    className="input-modern w-full"
-                    rows="4"
-                    placeholder='{"duration": 30, "intensity": "medium"}'
-                  />
-                </div>
-                <div>
-                  <label className="label-modern">Fecha del Registro</label>
-                  <input
-                    type="date"
-                    name="log_date"
-                    defaultValue={editingLog.log_date}
-                    className="input-modern w-full"
-                  />
-                </div>
-              </div>
-              
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  onClick={() => setShowEditModal(false)}
-                  className="btn-secondary"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                >
-                  Guardar Cambios
-                </button>
-              </div>
-            </form>
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="admin-logs-pagination">
+          <div className="admin-logs-pagination-info">
+            Mostrando página {currentPage} de {totalPages} ({totalLogs} registros total)
+          </div>
+          <div className="admin-logs-pagination-controls">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="admin-logs-btn admin-logs-btn-secondary"
+            >
+              Anterior
+            </button>
+            <span className="admin-logs-pagination-page">
+              {currentPage} / {totalPages}
+            </span>
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="admin-logs-btn admin-logs-btn-secondary"
+            >
+              Siguiente
+            </button>
           </div>
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      <ConfirmModal
-        isOpen={showDeleteModal}
-        onClose={() => {
-          setShowDeleteModal(false);
-          setLogToDelete(null);
-        }}
-        onConfirm={confirmDelete}
-        title="Eliminar Registro"
-        message={`¿Estás seguro de que quieres eliminar este registro? Esta acción no se puede deshacer.`}
-        confirmText="Eliminar"
-        cancelText="Cancelar"
-        variant="danger"
-      />
+      {/* Modals */}
+      {showDeleteModal && (
+        <ConfirmModal
+          isOpen={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+          onConfirm={confirmDelete}
+          title="Eliminar Registro"
+          message={`¿Estás seguro de que quieres eliminar este registro? Esta acción no se puede deshacer.`}
+          confirmText="Eliminar"
+          cancelText="Cancelar"
+          type="danger"
+        />
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal">
+            <div className="admin-modal-header">
+              <h3 className="admin-modal-title">Editar Registro</h3>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="admin-modal-close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="admin-modal-body">
+              <div className="admin-form-group">
+                <label className="admin-form-label">Fecha del Registro</label>
+                <input
+                  type="date"
+                  value={editForm.log_date}
+                  onChange={(e) => handleEditFormChange('log_date', e.target.value)}
+                  className="admin-form-input"
+                />
+              </div>
+              <div className="admin-form-group">
+                <label className="admin-form-label">Estado</label>
+                <select
+                  value={editForm.status}
+                  onChange={(e) => handleEditFormChange('status', e.target.value)}
+                  className="admin-form-input"
+                >
+                  <option value="completed">Completado</option>
+                  <option value="missed">Perdido</option>
+                  <option value="partial">Parcial</option>
+                  <option value="pending">Pendiente</option>
+                </select>
+              </div>
+              <div className="admin-form-group">
+                <label className="admin-form-label">Fecha de Completado</label>
+                <input
+                  type="date"
+                  value={editForm.completed_at}
+                  onChange={(e) => handleEditFormChange('completed_at', e.target.value)}
+                  className="admin-form-input"
+                />
+              </div>
+              <div className="admin-form-group">
+                <label className="admin-form-label">Notas</label>
+                <textarea
+                  value={editForm.notes}
+                  onChange={(e) => handleEditFormChange('notes', e.target.value)}
+                  className="admin-form-input"
+                  placeholder="Notas adicionales sobre el registro"
+                  rows="3"
+                />
+              </div>
+            </div>
+            <div className="admin-modal-footer">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="admin-btn admin-btn-secondary"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                className="admin-btn admin-btn-primary"
+              >
+                Guardar Cambios
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Modal */}
+      {showViewModal && viewingLog && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal">
+            <div className="admin-modal-header">
+              <h3 className="admin-modal-title">Detalles del Registro</h3>
+              <button
+                onClick={() => setShowViewModal(false)}
+                className="admin-modal-close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="admin-modal-body">
+              <div className="admin-user-details">
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">ID:</label>
+                  <span className="admin-detail-value">{viewingLog.id}</span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Usuario:</label>
+                  <span className="admin-detail-value">
+                    {viewingLog.habit?.user?.name || 'N/A'} ({viewingLog.habit?.user?.email})
+                  </span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Hábito:</label>
+                  <span className="admin-detail-value">
+                    {viewingLog.habit?.name || 'N/A'} ({viewingLog.habit?.type})
+                  </span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Fecha del Registro:</label>
+                  <span className="admin-detail-value">
+                    {new Date(viewingLog.log_date).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Estado:</label>
+                  <span className={`admin-logs-status ${getStatusClass(viewingLog.status)}`}>
+                    {getStatusIcon(viewingLog.status)}
+                    {getStatusLabel(viewingLog.status)}
+                  </span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Fecha de Completado:</label>
+                  <span className="admin-detail-value">
+                    {viewingLog.completed_at ? new Date(viewingLog.completed_at).toLocaleDateString() : 'No completado'}
+                  </span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Notas:</label>
+                  <span className="admin-detail-value">
+                    {viewingLog.notes || 'Sin notas'}
+                  </span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Creado:</label>
+                  <span className="admin-detail-value">
+                    {new Date(viewingLog.created_at).toLocaleString()}
+                  </span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Actualizado:</label>
+                  <span className="admin-detail-value">
+                    {new Date(viewingLog.updated_at).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="admin-modal-footer">
+              <button
+                onClick={() => setShowViewModal(false)}
+                className="admin-btn admin-btn-secondary"
+              >
+                Cerrar
+              </button>
+              <button
+                onClick={() => {
+                  setShowViewModal(false);
+                  handleEdit(viewingLog);
+                }}
+                className="admin-btn admin-btn-primary"
+              >
+                Editar Registro
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

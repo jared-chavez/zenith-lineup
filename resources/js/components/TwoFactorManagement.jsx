@@ -11,9 +11,6 @@ const TwoFactorManagement = () => {
     const [showSetup, setShowSetup] = useState(false);
     const [setupCode, setSetupCode] = useState('');
     const [confirmCode, setConfirmCode] = useState('');
-    // Remove error and success states
-    // const [error, setError] = useState('');
-    // const [success, setSuccess] = useState('');
     const [timeLeft, setTimeLeft] = useState(0);
 
     const notificationStore = useNotificationStore();
@@ -34,7 +31,7 @@ const TwoFactorManagement = () => {
     const checkTwoFactorStatus = async () => {
         try {
             const response = await axios.get('/api/auth/2fa/status');
-            setIsEnabled(response.data.enabled);
+            setIsEnabled(response.data.two_factor_enabled);
         } catch (error) {
             handleError(error, 'checkTwoFactorStatus');
         } finally {
@@ -44,8 +41,6 @@ const TwoFactorManagement = () => {
 
     const handleEnable2FA = async () => {
         setIsUpdating(true);
-        // setError('');
-        // setSuccess('');
 
         try {
             const response = await axios.post('/api/auth/2fa/enable');
@@ -66,7 +61,6 @@ const TwoFactorManagement = () => {
         }
 
         setIsUpdating(true);
-        // setError('');
 
         try {
             await axios.post('/api/auth/2fa/confirm', {
@@ -96,8 +90,6 @@ const TwoFactorManagement = () => {
         }
 
         setIsUpdating(true);
-        // setError('');
-        // setSuccess('');
 
         try {
             await axios.post('/api/auth/2fa/disable');
@@ -112,7 +104,6 @@ const TwoFactorManagement = () => {
 
     const handleResendCode = async () => {
         setIsUpdating(true);
-        // setError('');
 
         try {
             const response = await axios.post('/api/auth/2fa/enable');
@@ -130,50 +121,42 @@ const TwoFactorManagement = () => {
         setShowSetup(false);
         setSetupCode('');
         setConfirmCode('');
-        // setError('');
         setTimeLeft(0);
     };
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center p-8">
-                <Loader2 className="animate-spin h-8 w-8 text-blue-600" />
+            <div className="two-factor-loading">
+                <Loader2 className="two-factor-loading-spinner" />
             </div>
         );
     }
 
     if (showSetup) {
         return (
-            <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center mb-4">
-                    <Shield className="h-6 w-6 text-blue-600 mr-2" />
-                    <h3 className="text-lg font-semibold text-gray-900">
+            <div className="two-factor-setup-card">
+                <div className="two-factor-setup-header">
+                    <Shield className="two-factor-setup-icon" />
+                    <h3 className="two-factor-setup-title">
                         Configurar verificación en dos pasos
                     </h3>
                 </div>
 
-                <div className="mb-6">
-                    <p className="text-gray-600 mb-4">
+                <div className="two-factor-setup-content">
+                    <p className="two-factor-setup-description">
                         Hemos enviado un código de verificación a tu correo electrónico.
                         Ingresa el código para completar la configuración.
                     </p>
 
                     {timeLeft > 0 && (
-                        <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-md mb-4">
+                        <div className="two-factor-timer-warning">
                             Tienes {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')} para completar la configuración
                         </div>
                     )}
 
-                    {/* Remove old error UI */}
-                    {/* {error && (
-                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4">
-                            {error}
-                        </div>
-                    )} */}
-
-                    <div className="space-y-4">
-                        <div>
-                            <label htmlFor="confirmCode" className="block text-sm font-medium text-gray-700 mb-2">
+                    <div className="two-factor-setup-form">
+                        <div className="two-factor-form-field">
+                            <label htmlFor="confirmCode" className="two-factor-form-label">
                                 Código de verificación
                             </label>
                             <input
@@ -181,21 +164,21 @@ const TwoFactorManagement = () => {
                                 type="text"
                                 value={confirmCode}
                                 onChange={(e) => setConfirmCode(e.target.value)}
-                                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                className="two-factor-form-input"
                                 placeholder="123456"
                                 maxLength="6"
                                 autoComplete="one-time-code"
                             />
                         </div>
 
-                        <div className="flex space-x-3">
+                        <div className="two-factor-setup-actions">
                             <button
                                 onClick={handleConfirmSetup}
                                 disabled={isUpdating || !confirmCode.trim() || timeLeft === 0}
-                                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="two-factor-btn-primary"
                             >
                                 {isUpdating ? (
-                                    <Loader2 className="animate-spin h-4 w-4 mx-auto" />
+                                    <Loader2 className="two-factor-btn-spinner" />
                                 ) : (
                                     'Confirmar'
                                 )}
@@ -204,20 +187,20 @@ const TwoFactorManagement = () => {
                             <button
                                 onClick={handleResendCode}
                                 disabled={isUpdating || timeLeft > 0}
-                                className="flex items-center px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="two-factor-btn-secondary"
                             >
                                 {isUpdating ? (
-                                    <Loader2 className="animate-spin h-4 w-4" />
+                                    <Loader2 className="two-factor-btn-spinner" />
                                 ) : timeLeft > 0 ? (
                                     `${timeLeft}s`
                                 ) : (
-                                    <RefreshCw className="h-4 w-4" />
+                                    <RefreshCw className="two-factor-btn-icon" />
                                 )}
                             </button>
 
                             <button
                                 onClick={cancelSetup}
-                                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="two-factor-btn-cancel"
                             >
                                 Cancelar
                             </button>
@@ -229,56 +212,39 @@ const TwoFactorManagement = () => {
     }
 
     return (
-        <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center">
+        <div className="two-factor-card">
+            <div className="two-factor-header">
+                <div className="two-factor-title-section">
                     {isEnabled ? (
-                        <ShieldCheck className="h-6 w-6 text-green-600 mr-2" />
+                        <ShieldCheck className="two-factor-icon-enabled" />
                     ) : (
-                        <ShieldX className="h-6 w-6 text-gray-400 mr-2" />
+                        <ShieldX className="two-factor-icon-disabled" />
                     )}
-                    <h3 className="text-lg font-semibold text-gray-900">
+                    <h3 className="two-factor-title">
                         Verificación en dos pasos
                     </h3>
                 </div>
-                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                    isEnabled 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-gray-100 text-gray-800'
-                }`}>
+                <span className={`two-factor-status ${isEnabled ? 'two-factor-status-enabled' : 'two-factor-status-disabled'}`}>
                     {isEnabled ? 'Habilitada' : 'Deshabilitada'}
                 </span>
             </div>
 
-            {/* Remove old error and success UI */}
-            {/* {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4">
-                    {error}
-                </div>
-            )}
-
-            {success && (
-                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md mb-4">
-                    {success}
-                </div>
-            )} */}
-
-            <p className="text-gray-600 mb-6">
+            <p className="two-factor-description">
                 {isEnabled 
                     ? 'La verificación en dos pasos está habilitada. Recibirás un código por correo electrónico cada vez que inicies sesión.'
                     : 'Habilita la verificación en dos pasos para agregar una capa adicional de seguridad a tu cuenta.'
                 }
             </p>
 
-            <div className="flex space-x-3">
+            <div className="two-factor-actions">
                 {!isEnabled ? (
                     <button
                         onClick={handleEnable2FA}
                         disabled={isUpdating}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="two-factor-btn-enable"
                     >
                         {isUpdating ? (
-                            <Loader2 className="animate-spin h-4 w-4" />
+                            <Loader2 className="two-factor-btn-spinner" />
                         ) : (
                             'Habilitar 2FA'
                         )}
@@ -287,10 +253,10 @@ const TwoFactorManagement = () => {
                     <button
                         onClick={handleDisable2FA}
                         disabled={isUpdating}
-                        className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="two-factor-btn-disable"
                     >
                         {isUpdating ? (
-                            <Loader2 className="animate-spin h-4 w-4" />
+                            <Loader2 className="two-factor-btn-spinner" />
                         ) : (
                             'Deshabilitar 2FA'
                         )}

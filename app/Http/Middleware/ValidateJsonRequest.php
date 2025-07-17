@@ -10,6 +10,15 @@ use Symfony\Component\HttpFoundation\Response;
 class ValidateJsonRequest
 {
     /**
+     * Routes that don't require strict Content-Type validation
+     */
+    private array $excludedRoutes = [
+        'api/auth/logout',
+        'api/auth/refresh',
+        'api/auth/me',
+    ];
+
+    /**
      * Handle an incoming request.
      *
      * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
@@ -18,9 +27,19 @@ class ValidateJsonRequest
     {
         // Check if request is for API endpoints
         if ($request->is('api/*')) {
+            // Skip validation for excluded routes
+            if (in_array($request->path(), $this->excludedRoutes)) {
+                return $next($request);
+            }
+
             // Validate Content-Type for POST/PUT/PATCH requests
             if (in_array($request->method(), ['POST', 'PUT', 'PATCH'])) {
                 $contentType = $request->header('Content-Type');
+                
+                // Allow requests without body or with empty body
+                if ($request->getContent() === '' || $request->getContent() === null) {
+                    return $next($request);
+                }
                 
                 if (!$contentType || !str_contains($contentType, 'application/json')) {
                     Log::warning('Invalid Content-Type for API request', [
@@ -36,9 +55,12 @@ class ValidateJsonRequest
                 }
             }
 
-            // Validate Accept header
+            // Validate Accept header (but be more lenient)
             $accept = $request->header('Accept');
-            if (!$accept || !str_contains($accept, 'application/json')) {
+            if (!$accept) {
+                // Set default Accept header if missing
+                $request->headers->set('Accept', 'application/json');
+            } elseif (!str_contains($accept, 'application/json') && !str_contains($accept, '*/*')) {
                 Log::warning('Invalid Accept header for API request', [
                     'method' => $request->method(),
                     'path' => $request->path(),

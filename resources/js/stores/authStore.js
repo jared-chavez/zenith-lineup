@@ -15,18 +15,26 @@ const useAuthStore = create(
             // Initialize auth state
             initialize: async () => {
                 const { token } = get();
+                console.log('=== AUTH STORE INITIALIZE ===');
+                console.log('Token from store:', token ? 'Presente' : 'Ausente');
+                console.log('Token completo:', token);
+                
                 if (token) {
                     // Restore token in axios headers
                     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+                    console.log('Token set in axios headers:', axios.defaults.headers.common['Authorization']);
+                    
                     try {
                         // Verifica si el token es válido
                         const response = await axios.get('/api/auth/me');
+                        console.log('Auth check successful:', response.data);
                         set({
                             user: response.data.user,
                             isAuthenticated: true,
                             isInitialized: true
                         });
                     } catch (error) {
+                        console.error('Auth check failed:', error.response?.data);
                         // Token inválido: limpiar todo
                         localStorage.clear();
                         set({
@@ -38,8 +46,10 @@ const useAuthStore = create(
                         delete axios.defaults.headers.common['Authorization'];
                     }
                 } else {
+                    console.log('No token found, setting unauthenticated');
                     set({ isInitialized: true, isAuthenticated: false });
                 }
+                console.log('=== END AUTH STORE INITIALIZE ===');
             },
 
             // Login
@@ -148,7 +158,12 @@ const useAuthStore = create(
             logout: async () => {
                 try {
                     if (get().token) {
-                        await axios.post('/api/auth/logout');
+                        await axios.post('/api/auth/logout', {}, {
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
+                            }
+                        });
                     }
                 } catch (error) {
                     console.error('Logout error:', error);

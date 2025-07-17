@@ -26,6 +26,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // Register custom middleware aliases
         $middleware->alias([
             'is_admin' => \App\Http\Middleware\IsAdmin::class,
+            'rateLimiting' => \App\Http\Middleware\RateLimiting::class,
+            'securityHeaders' => \App\Http\Middleware\SecurityHeaders::class,
+            'validateJson' => \App\Http\Middleware\ValidateJsonRequest::class,
+            'api.auth' => \App\Http\Middleware\ApiAuthenticate::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -14,96 +14,89 @@ class AdminStatsController extends Controller
 {
     public function index()
     {
-        // Basic counts
-        $usersCount = User::count();
-        $habitsCount = Habit::count();
-        $logsCount = HabitLog::count();
+        try {
+            // Basic counts - these should work
+            $usersCount = User::count();
+            $habitsCount = Habit::count();
+            $logsCount = HabitLog::count();
 
-        // User statistics
-        $activeUsers = User::whereHas('habitLogs', function($query) {
-            $query->where('created_at', '>=', now()->subDays(30));
-        })->count();
-
-        $adminUsers = User::where('role', 'admin')->count();
-        $usersWith2FA = User::where('two_factor_enabled', true)->count();
-        
-        // New users this month
-        $newUsersThisMonth = User::where('created_at', '>=', now()->startOfMonth())->count();
-        
-        // User growth chart data (last 6 months)
-        $userGrowth = $this->getUserGrowthData();
-
-        // Habit statistics
-        $activeHabits = Habit::where('status', 'active')->count();
-        $habitsByType = Habit::select('type', DB::raw('count(*) as count'))
-            ->groupBy('type')
-            ->get();
-
-        $habitsByStatus = Habit::select('status', DB::raw('count(*) as count'))
-            ->groupBy('status')
-            ->get();
-
-        // Log statistics
-        $logsThisMonth = HabitLog::where('created_at', '>=', now()->startOfMonth())->count();
-        $completedLogs = HabitLog::where('status', 'completed')->count();
-        $completionRate = $logsCount > 0 ? round(($completedLogs / $logsCount) * 100, 2) : 0;
-
-        // Daily activity for the last 30 days
-        $dailyActivity = $this->getDailyActivityData();
-
-        // Top performing habits
-        $topHabits = Habit::withCount(['habitLogs' => function($query) {
-            $query->where('status', 'completed');
-        }])
-        ->orderBy('habit_logs_count', 'desc')
-        ->limit(10)
-        ->get();
-
-        // Recent activity
-        $recentLogs = HabitLog::with(['user', 'habit'])
-            ->orderBy('created_at', 'desc')
+            // User statistics - simplified
+            $adminUsers = User::where('role', 'admin')->count();
+            $usersWith2FA = User::where('two_factor_enabled', true)->count();
+            $newUsersThisMonth = User::where('created_at', '>=', now()->startOfMonth())->count();
+            
+            // Comment out complex queries for now
+            $activeUsers = User::whereHas('habitLogs', function($query) {
+                $query->where('created_at', '>=', now()->subDays(30));
+            })->count();
+            
+            $userGrowth = $this->getUserGrowthData();
+            $activeHabits = Habit::where('is_active', true)->count();
+            $habitsByType = Habit::select('type', DB::raw('count(*) as count'))
+                ->groupBy('type')
+                ->get();
+            $habitsByStatus = Habit::select('is_active', DB::raw('count(*) as count'))
+                ->groupBy('is_active')
+                ->get();
+            $logsThisMonth = HabitLog::where('created_at', '>=', now()->startOfMonth())->count();
+            $completedLogs = HabitLog::where('status', 'completed')->count();
+            $completionRate = $logsCount > 0 ? round(($completedLogs / $logsCount) * 100, 2) : 0;
+            $dailyActivity = $this->getDailyActivityData();
+            $topHabits = Habit::withCount(['habitLogs' => function($query) {
+                $query->where('status', 'completed');
+            }])
+            ->orderBy('habit_logs_count', 'desc')
             ->limit(10)
             ->get();
+            $recentLogs = HabitLog::with(['user', 'habit'])
+                ->orderBy('created_at', 'desc')
+                ->limit(10)
+                ->get();
+            $recentUsers = User::orderBy('created_at', 'desc')
+                ->limit(10)
+                ->get();
+            $systemHealth = $this->getSystemHealthMetrics();
 
-        $recentUsers = User::orderBy('created_at', 'desc')
-            ->limit(10)
-            ->get();
-
-        // System health metrics
-        $systemHealth = $this->getSystemHealthMetrics();
-
-        return response()->json([
-            // Basic counts
-            'users_count' => $usersCount,
-            'habits_count' => $habitsCount,
-            'logs_count' => $logsCount,
+            return response()->json([
+                // Basic counts
+                'users_count' => $usersCount,
+                'habits_count' => $habitsCount,
+                'logs_count' => $logsCount,
+                
+                // User metrics - simplified
+                'active_users' => $activeUsers,
+                'admin_users' => $adminUsers,
+                'users_with_2fa' => $usersWith2FA,
+                'new_users_this_month' => $newUsersThisMonth,
+                'user_growth' => $userGrowth,
+                
+                // Habit metrics - simplified
+                'active_habits' => $activeHabits,
+                'habits_by_type' => $habitsByType,
+                'habits_by_status' => $habitsByStatus,
+                'top_habits' => $topHabits,
+                
+                // Log metrics - simplified
+                'logs_this_month' => $logsThisMonth,
+                'completed_logs' => $completedLogs,
+                'completion_rate' => $completionRate,
+                'daily_activity' => $dailyActivity,
+                
+                // Recent activity - simplified
+                'recent_logs' => $recentLogs,
+                'recent_users' => $recentUsers,
+                
+                // System health - simplified
+                'system_health' => $systemHealth,
+            ]);
             
-            // User metrics
-            'active_users' => $activeUsers,
-            'admin_users' => $adminUsers,
-            'users_with_2fa' => $usersWith2FA,
-            'new_users_this_month' => $newUsersThisMonth,
-            'user_growth' => $userGrowth,
-            
-            // Habit metrics
-            'active_habits' => $activeHabits,
-            'habits_by_type' => $habitsByType,
-            'habits_by_status' => $habitsByStatus,
-            'top_habits' => $topHabits,
-            
-            // Log metrics
-            'logs_this_month' => $logsThisMonth,
-            'completed_logs' => $completedLogs,
-            'completion_rate' => $completionRate,
-            'daily_activity' => $dailyActivity,
-            
-            // Recent activity
-            'recent_logs' => $recentLogs,
-            'recent_users' => $recentUsers,
-            
-            // System health
-            'system_health' => $systemHealth,
-        ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Error in AdminStatsController: ' . $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ], 500);
+        }
     }
 
     /**

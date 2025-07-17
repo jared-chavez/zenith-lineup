@@ -1,40 +1,85 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Search, Edit, Trash2, Eye, Filter, Users, Shield, Calendar, Mail } from "lucide-react";
+import { Search, Edit, Trash2, Eye, Filter, Users, Shield, Calendar, Mail, Download, MoreHorizontal, RefreshCw, X } from "lucide-react";
 import useNotificationStore from "../../stores/notificationStore";
 import useErrorHandler from "../../hooks/useErrorHandler";
+import useAuthStore from "../../stores/authStore";
+import useAdminFilters from "../../hooks/useAdminFilters";
 import ConfirmModal from "../ConfirmModal";
 
 const AdminUsersTable = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [roleFilter, setRoleFilter] = useState("");
   const [editingUser, setEditingUser] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [viewingUser, setViewingUser] = useState(null);
   const [userToDelete, setUserToDelete] = useState(null);
+  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [usersPerPage] = useState(10);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    email: '',
+    role: 'user',
+    password: ''
+  });
 
   const { success, error } = useNotificationStore();
   const { handleError } = useErrorHandler();
+  const { token } = useAuthStore();
+
+  // Usar el hook de filtros
+  const {
+    filters,
+    setFilters,
+    debouncedFilters,
+    resetFilters,
+    filterOptions
+  } = useAdminFilters({
+    search: '',
+    role: '',
+    two_factor_enabled: '',
+    activity_status: '',
+    created_from: '',
+    created_to: '',
+    sort_by: 'created_at',
+    sort_order: 'desc'
+  });
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [debouncedFilters, currentPage]);
 
   const fetchUsers = async () => {
     try {
-      const token = localStorage.getItem("token");
+      setLoading(true);
+      
       const response = await axios.get("/api/admin/users", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
         params: {
-          search: searchTerm,
-          role: roleFilter,
+          ...debouncedFilters,
+          page: currentPage,
+          per_page: usersPerPage,
         },
       });
-      setUsers(response.data.users || []);
+      
+      // Manejar respuesta paginada
+      if (response.data.users && response.data.users.data) {
+        setUsers(response.data.users.data || []);
+        setTotalPages(response.data.users.last_page || 1);
+        setTotalUsers(response.data.users.total || 0);
+      } else {
+        setUsers(response.data.users || []);
+        setTotalPages(1);
+        setTotalUsers(response.data.users?.length || 0);
+      }
+      
     } catch (err) {
       handleError(err, 'fetching users');
     } finally {
@@ -44,6 +89,12 @@ const AdminUsersTable = () => {
 
   const handleEdit = (user) => {
     setEditingUser(user);
+    setEditForm({
+      name: user.name || '',
+      email: user.email || '',
+      role: user.role || 'user',
+      password: ''
+    });
     setShowEditModal(true);
   };
 
@@ -52,9 +103,42 @@ const AdminUsersTable = () => {
     setShowDeleteModal(true);
   };
 
+  const handleView = (user) => {
+    setViewingUser(user);
+    setShowViewModal(true);
+  };
+
+  const handleEditFormChange = (field, value) => {
+    setEditForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleSaveEdit = async () => {
+    try {
+      const updateData = { ...editForm };
+      if (!updateData.password) {
+        delete updateData.password;
+      }
+
+      await axios.put(`/api/admin/users/${editingUser.id}`, updateData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setShowEditModal(false);
+      setEditingUser(null);
+      setEditForm({ name: '', email: '', role: 'user', password: '' });
+      success('Usuario actualizado correctamente');
+      fetchUsers();
+    } catch (err) {
+      handleError(err, 'updating user');
+    }
+  };
+
   const confirmDelete = async () => {
     try {
-      const token = localStorage.getItem("token");
       await axios.delete(`/api/admin/users/${userToDelete.id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -70,280 +154,493 @@ const AdminUsersTable = () => {
     }
   };
 
-  const handleSaveEdit = async (userData) => {
+  const handleBulkAction = async (action) => {
+    if (selectedUsers.length === 0) {
+      error('Selecciona al menos un usuario');
+      return;
+    }
+
     try {
-      const token = localStorage.getItem("token");
-      await axios.put(`/api/admin/users/${editingUser.id}`, userData, {
+      await axios.post('/api/admin/users/bulk-action', {
+        action,
+        user_ids: selectedUsers
+      }, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      setShowEditModal(false);
-      setEditingUser(null);
-      success('Usuario actualizado correctamente');
+      success(`Acción ${action} aplicada a ${selectedUsers.length} usuarios`);
+      setSelectedUsers([]);
       fetchUsers();
     } catch (err) {
-      handleError(err, 'updating user');
+      handleError(err, 'bulk action');
     }
   };
 
-  const filteredUsers = users.filter((user) => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = !roleFilter || user.role === roleFilter;
-    return matchesSearch && matchesRole;
-  });
+  const handleExport = async () => {
+    try {
+      const response = await axios.post('/api/admin/users/export', {
+        ...debouncedFilters,
+      }, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        responseType: 'blob',
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `usuarios-${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      success('Exportación completada');
+    } catch (err) {
+      handleError(err, 'exporting users');
+    }
+  };
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <div className="loading-spinner w-8 h-8"></div>
+      <div className="admin-table-container">
+        <div className="admin-table-loading">
+          <div className="admin-table-loading-spinner"></div>
+          Cargando usuarios...
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Filters - Fitia Style */}
-      <div className="layer-elevated animate-fade-in">
-        <div className="p-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type="text"
-                  placeholder="Buscar usuarios por nombre o email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="input-modern w-full pl-10 pr-4"
-                />
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                className="input-modern"
-              >
-                <option value="">Todos los roles</option>
-                <option value="user">Usuario</option>
-                <option value="admin">Administrador</option>
-              </select>
-              <button
-                onClick={fetchUsers}
-                className="btn-primary layer-pressable"
-              >
-                <Filter size={18} />
-                Filtrar
-              </button>
-            </div>
-          </div>
+    <div className="admin-table-container">
+      {/* Header */}
+      <div className="admin-table-header">
+        <h2 className="admin-table-title">Usuarios Registrados</h2>
+        <p className="admin-table-subtitle">
+          Gestiona todos los usuarios de la plataforma ({totalUsers} usuarios)
+        </p>
+        
+        {/* Actions */}
+        <div className="admin-table-filters">
+          <button
+            onClick={fetchUsers}
+            disabled={loading}
+            className="admin-table-btn admin-table-btn-primary"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Actualizar
+          </button>
+          <button
+            onClick={handleExport}
+            className="admin-table-btn admin-table-btn-secondary"
+          >
+            <Download className="h-4 w-4" />
+            Exportar
+          </button>
         </div>
       </div>
 
-      {/* Users Table - Fitia Style */}
-      <div className="layer-elevated animate-fade-in">
-        <div className="overflow-hidden rounded-xl">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gradient-to-r from-green-50 to-emerald-50">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <Users className="h-4 w-4 mr-2 text-green-600" />
-                      Usuario
+      {/* Filters */}
+      <div className="admin-table-filters">
+        <div className="admin-table-search">
+          <Search className="admin-table-search-icon" />
+          <input
+            type="text"
+            placeholder="Buscar usuarios..."
+            value={filters.search}
+            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+          />
+        </div>
+        
+        <select
+          className="admin-table-select"
+          value={filters.role}
+          onChange={(e) => setFilters({ ...filters, role: e.target.value })}
+        >
+          <option value="">Todos los roles</option>
+          <option value="user">Usuario</option>
+          <option value="admin">Administrador</option>
+        </select>
+
+        <select
+          className="admin-table-select"
+          value={filters.activity_status}
+          onChange={(e) => setFilters({ ...filters, activity_status: e.target.value })}
+        >
+          <option value="">Todos los estados</option>
+          <option value="active">Activo</option>
+          <option value="inactive">Inactivo</option>
+          <option value="new">Nuevo</option>
+        </select>
+
+        <select
+          className="admin-table-select"
+          value={filters.sort_by}
+          onChange={(e) => setFilters({ ...filters, sort_by: e.target.value })}
+        >
+          <option value="created_at">Fecha de registro</option>
+          <option value="name">Nombre</option>
+          <option value="email">Email</option>
+          <option value="last_login_at">Último login</option>
+        </select>
+
+        <select
+          className="admin-table-select"
+          value={filters.sort_order}
+          onChange={(e) => setFilters({ ...filters, sort_order: e.target.value })}
+        >
+          <option value="desc">Descendente</option>
+          <option value="asc">Ascendente</option>
+        </select>
+        
+        <button
+          onClick={resetFilters}
+          className="admin-table-btn admin-table-btn-secondary"
+        >
+          Limpiar
+        </button>
+      </div>
+
+      {/* Table Content */}
+      <div className="admin-table-content">
+        {users.length === 0 ? (
+          <div className="admin-table-empty">
+            <div className="admin-table-empty-icon">
+              <Users className="h-8 w-8" />
+            </div>
+            <h3 className="admin-table-empty-title">No se encontraron usuarios</h3>
+            <p className="admin-table-empty-desc">
+              Intenta ajustar los filtros de búsqueda
+            </p>
+          </div>
+        ) : (
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>
+                  <input
+                    type="checkbox"
+                    className="admin-table-checkbox"
+                    checked={selectedUsers.length === users.length}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedUsers(users.map(u => u.id));
+                      } else {
+                        setSelectedUsers([]);
+                      }
+                    }}
+                  />
+                </th>
+                <th>Usuario</th>
+                <th>Email</th>
+                <th>Rol</th>
+                <th>Estado</th>
+                <th>Registrado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((user) => (
+                <tr key={user.id}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      className="admin-table-checkbox"
+                      checked={selectedUsers.includes(user.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedUsers([...selectedUsers, user.id]);
+                        } else {
+                          setSelectedUsers(selectedUsers.filter(id => id !== user.id));
+                        }
+                      }}
+                    />
+                  </td>
+                  <td>
+                    <div className="admin-table-user-info">
+                      <div className="admin-table-user-name">
+                        {user.name || 'Sin nombre'}
+                      </div>
+                      <div className="admin-table-user-email">
+                        ID: {user.id}
+                      </div>
                     </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <Mail className="h-4 w-4 mr-2 text-green-600" />
-                      Email
+                  </td>
+                  <td>
+                    <div className="admin-table-user-email">
+                      {user.email}
                     </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <Shield className="h-4 w-4 mr-2 text-green-600" />
-                      Rol
+                  </td>
+                  <td>
+                    <span className={`admin-table-badge ${user.role === 'admin' ? 'admin-table-badge-exercise' : 'admin-table-badge-nutrition'}`}>
+                      {user.role === 'admin' ? 'Administrador' : 'Usuario'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`admin-table-badge ${user.email_verified_at ? 'admin-table-badge-water' : 'admin-table-badge-sleep'}`}>
+                      {user.email_verified_at ? 'Verificado' : 'Pendiente'}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="admin-table-habit-name">
+                      {new Date(user.created_at).toLocaleDateString()}
                     </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <Calendar className="h-4 w-4 mr-2 text-green-600" />
-                      Registro
+                  </td>
+                  <td>
+                    <div className="admin-table-actions">
+                      <button
+                        onClick={() => handleEdit(user)}
+                        className="admin-table-action-btn admin-table-action-btn-edit"
+                        title="Editar"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(user)}
+                        className="admin-table-action-btn admin-table-action-btn-delete"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleView(user)}
+                        className="admin-table-action-btn admin-table-action-btn-view"
+                        title="Ver detalles"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
                     </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Acciones
-                  </th>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-100">
-                {filteredUsers.map((user, index) => (
-                  <tr 
-                    key={user.id} 
-                    className="layer-surface layer-interactive animate-fade-in hover:shadow-md transition-all duration-200"
-                    style={{ animationDelay: `${index * 0.05}s` }}
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
-                          <span className="text-white text-sm font-semibold">
-                            {user.name?.charAt(0)?.toUpperCase() || 'U'}
-                          </span>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-semibold text-gray-900">{user.name}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-700">{user.email}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`badge-modern ${
-                        user.role === 'admin' 
-                          ? 'badge-danger' 
-                          : 'badge-success'
-                      }`}>
-                        {user.role === 'admin' ? 'Administrador' : 'Usuario'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {new Date(user.created_at).toLocaleDateString('es-ES', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => handleEdit(user)}
-                          className="btn-icon btn-ghost layer-pressable"
-                          title="Editar usuario"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(user)}
-                          className="btn-icon btn-danger layer-pressable"
-                          title="Eliminar usuario"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          
-          {filteredUsers.length === 0 && (
-            <div className="text-center py-12">
-              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500 text-lg">No se encontraron usuarios</p>
-              <p className="text-gray-400 text-sm">Intenta ajustar los filtros de búsqueda</p>
-            </div>
-          )}
-        </div>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
-      {/* Edit Modal - Fitia Style */}
-      {showEditModal && editingUser && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <div className="flex items-center">
-                <Edit className="h-5 w-5 text-green-600 mr-2" />
-                <h3 className="text-lg font-semibold text-gray-900">Editar Usuario</h3>
-              </div>
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="btn-icon btn-ghost"
-              >
-                ×
-              </button>
-            </div>
-            
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              const formData = new FormData(e.target);
-              handleSaveEdit({
-                name: formData.get('name'),
-                email: formData.get('email'),
-                role: formData.get('role'),
-              });
-            }}>
-              <div className="space-y-4">
-                <div>
-                  <label className="label-modern">Nombre</label>
-                  <input
-                    type="text"
-                    name="name"
-                    defaultValue={editingUser.name}
-                    className="input-modern w-full"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="label-modern">Email</label>
-                  <input
-                    type="email"
-                    name="email"
-                    defaultValue={editingUser.email}
-                    className="input-modern w-full"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="label-modern">Rol</label>
-                  <select
-                    name="role"
-                    defaultValue={editingUser.role}
-                    className="input-modern w-full"
-                  >
-                    <option value="user">Usuario</option>
-                    <option value="admin">Administrador</option>
-                  </select>
-                </div>
-              </div>
-              
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  onClick={() => setShowEditModal(false)}
-                  className="btn-secondary"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                >
-                  Guardar Cambios
-                </button>
-              </div>
-            </form>
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="admin-table-pagination">
+          <div className="admin-table-pagination-info">
+            Mostrando página {currentPage} de {totalPages} ({totalUsers} usuarios total)
+          </div>
+          <div className="admin-table-pagination-controls">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="admin-table-btn admin-table-btn-secondary"
+            >
+              Anterior
+            </button>
+            <span className="admin-table-pagination-page">
+              {currentPage} / {totalPages}
+            </span>
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="admin-table-btn admin-table-btn-secondary"
+            >
+              Siguiente
+            </button>
           </div>
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      <ConfirmModal
-        isOpen={showDeleteModal}
-        onClose={() => {
-          setShowDeleteModal(false);
-          setUserToDelete(null);
-        }}
-        onConfirm={confirmDelete}
-        title="Eliminar Usuario"
-        message={`¿Estás seguro de que quieres eliminar al usuario "${userToDelete?.name}"? Esta acción no se puede deshacer.`}
-        confirmText="Eliminar"
-        cancelText="Cancelar"
-        variant="danger"
-      />
+      {/* Bulk Actions */}
+      {selectedUsers.length > 0 && (
+        <div className="admin-table-pagination">
+          <div className="admin-table-pagination-info">
+            {selectedUsers.length} usuarios seleccionados
+          </div>
+          <div className="admin-table-pagination-controls">
+            <button
+              onClick={() => handleBulkAction('activate')}
+              className="admin-table-btn admin-table-btn-primary"
+            >
+              Activar
+            </button>
+            <button
+              onClick={() => handleBulkAction('deactivate')}
+              className="admin-table-btn admin-table-btn-secondary"
+            >
+              Desactivar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modals */}
+      {showDeleteModal && (
+        <ConfirmModal
+          isOpen={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+          onConfirm={confirmDelete}
+          title="Eliminar Usuario"
+          message={`¿Estás seguro de que quieres eliminar al usuario "${userToDelete?.name}"? Esta acción no se puede deshacer.`}
+          confirmText="Eliminar"
+          cancelText="Cancelar"
+          type="danger"
+        />
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal">
+            <div className="admin-modal-header">
+              <h3 className="admin-modal-title">Editar Usuario</h3>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="admin-modal-close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="admin-modal-body">
+              <div className="admin-form-group">
+                <label className="admin-form-label">Nombre</label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) => handleEditFormChange('name', e.target.value)}
+                  className="admin-form-input"
+                  placeholder="Nombre del usuario"
+                />
+              </div>
+              <div className="admin-form-group">
+                <label className="admin-form-label">Email</label>
+                <input
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) => handleEditFormChange('email', e.target.value)}
+                  className="admin-form-input"
+                  placeholder="email@ejemplo.com"
+                />
+              </div>
+              <div className="admin-form-group">
+                <label className="admin-form-label">Rol</label>
+                <select
+                  value={editForm.role}
+                  onChange={(e) => handleEditFormChange('role', e.target.value)}
+                  className="admin-form-input"
+                >
+                  <option value="user">Usuario</option>
+                  <option value="admin">Administrador</option>
+                </select>
+              </div>
+              <div className="admin-form-group">
+                <label className="admin-form-label">Nueva Contraseña (opcional)</label>
+                <input
+                  type="password"
+                  value={editForm.password}
+                  onChange={(e) => handleEditFormChange('password', e.target.value)}
+                  className="admin-form-input"
+                  placeholder="Dejar vacío para mantener la actual"
+                />
+              </div>
+            </div>
+            <div className="admin-modal-footer">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="admin-btn admin-btn-secondary"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                className="admin-btn admin-btn-primary"
+              >
+                Guardar Cambios
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Modal */}
+      {showViewModal && viewingUser && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal">
+            <div className="admin-modal-header">
+              <h3 className="admin-modal-title">Detalles del Usuario</h3>
+              <button
+                onClick={() => setShowViewModal(false)}
+                className="admin-modal-close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="admin-modal-body">
+              <div className="admin-user-details">
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">ID:</label>
+                  <span className="admin-detail-value">{viewingUser.id}</span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Nombre:</label>
+                  <span className="admin-detail-value">{viewingUser.name || 'Sin nombre'}</span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Email:</label>
+                  <span className="admin-detail-value">{viewingUser.email}</span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Rol:</label>
+                  <span className={`admin-table-badge ${viewingUser.role === 'admin' ? 'admin-table-badge-exercise' : 'admin-table-badge-nutrition'}`}>
+                    {viewingUser.role === 'admin' ? 'Administrador' : 'Usuario'}
+                  </span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Estado:</label>
+                  <span className={`admin-table-badge ${viewingUser.email_verified_at ? 'admin-table-badge-water' : 'admin-table-badge-sleep'}`}>
+                    {viewingUser.email_verified_at ? 'Verificado' : 'Pendiente'}
+                  </span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">2FA Habilitado:</label>
+                  <span className={`admin-table-badge ${viewingUser.two_factor_enabled ? 'admin-table-badge-water' : 'admin-table-badge-sleep'}`}>
+                    {viewingUser.two_factor_enabled ? 'Sí' : 'No'}
+                  </span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Registrado:</label>
+                  <span className="admin-detail-value">
+                    {new Date(viewingUser.created_at).toLocaleString()}
+                  </span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Último login:</label>
+                  <span className="admin-detail-value">
+                    {viewingUser.last_login_at ? new Date(viewingUser.last_login_at).toLocaleString() : 'Nunca'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="admin-modal-footer">
+              <button
+                onClick={() => setShowViewModal(false)}
+                className="admin-btn admin-btn-secondary"
+              >
+                Cerrar
+              </button>
+              <button
+                onClick={() => {
+                  setShowViewModal(false);
+                  handleEdit(viewingUser);
+                }}
+                className="admin-btn admin-btn-primary"
+              >
+                Editar Usuario
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

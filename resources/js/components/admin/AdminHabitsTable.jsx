@@ -1,50 +1,121 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Search, Edit, Trash2, Filter, Target, User, Clock, Calendar, Zap } from "lucide-react";
+import { Target, Search, Edit, Trash2, Filter, Calendar, User, Tag, Download, RefreshCw, Eye, X } from "lucide-react";
 import useNotificationStore from "../../stores/notificationStore";
 import useErrorHandler from "../../hooks/useErrorHandler";
+import useAuthStore from "../../stores/authStore";
+import useAdminFilters from "../../hooks/useAdminFilters";
 import ConfirmModal from "../ConfirmModal";
 
 const AdminHabitsTable = () => {
   const [habits, setHabits] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [typeFilter, setTypeFilter] = useState("");
   const [editingHabit, setEditingHabit] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [viewingHabit, setViewingHabit] = useState(null);
   const [habitToDelete, setHabitToDelete] = useState(null);
+  const [selectedHabits, setSelectedHabits] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    description: '',
+    type: 'water',
+    frequency: 1,
+    frequency_unit: 'day',
+    reminder_time: '',
+    is_active: true
+  });
 
   const { success } = useNotificationStore();
   const { handleError } = useErrorHandler();
+  const { token } = useAuthStore();
+
+  // Initialize filters
+  const {
+    filters,
+    debouncedFilters,
+    isFiltering,
+    updateFilter,
+    updateFilters,
+    resetFilters,
+    clearFilter,
+    getApiFilters,
+    getFrontendFilters,
+    hasActiveFilters,
+    getFilterCount,
+    setIsFiltering
+  } = useAdminFilters({
+    search: '',
+    type: '',
+    user: '',
+    status: '',
+    date_from: '',
+    date_to: ''
+  });
 
   useEffect(() => {
     fetchHabits();
-  }, []);
+  }, [debouncedFilters]); // Refetch when debounced filters change
 
   const fetchHabits = async () => {
     try {
-      const token = localStorage.getItem("token");
+      setLoading(true);
+      setIsFiltering(true);
+      
       const response = await axios.get("/api/admin/habits", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
-        params: {
-          search: searchTerm,
-          type: typeFilter,
-        },
+        params: getApiFilters(),
       });
+      
       setHabits(response.data.habits || []);
     } catch (err) {
       handleError(err, 'fetching habits');
     } finally {
       setLoading(false);
+      setIsFiltering(false);
     }
+  };
+
+  // Frontend filtering for additional features
+  const getFilteredHabits = () => {
+    let filtered = habits;
+
+    // Apply frontend filters if needed
+    const frontendFilters = getFrontendFilters();
+    
+    if (frontendFilters.search) {
+      const searchTerm = frontendFilters.search.toLowerCase();
+      filtered = filtered.filter(habit => 
+        habit.name?.toLowerCase().includes(searchTerm) ||
+        habit.description?.toLowerCase().includes(searchTerm) ||
+        habit.user?.name?.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    return filtered;
   };
 
   const handleEdit = (habit) => {
     setEditingHabit(habit);
+    setEditForm({
+      name: habit.name || '',
+      description: habit.description || '',
+      type: habit.type || 'water',
+      frequency: habit.frequency || 1,
+      frequency_unit: habit.frequency_unit || 'day',
+      reminder_time: habit.reminder_time || '',
+      is_active: habit.is_active !== undefined ? habit.is_active : true
+    });
     setShowEditModal(true);
+  };
+
+  const handleView = (habit) => {
+    setViewingHabit(habit);
+    setShowViewModal(true);
   };
 
   const handleDelete = (habit) => {
@@ -54,7 +125,6 @@ const AdminHabitsTable = () => {
 
   const confirmDelete = async () => {
     try {
-      const token = localStorage.getItem("token");
       await axios.delete(`/api/admin/habits/${habitToDelete.id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -70,20 +140,49 @@ const AdminHabitsTable = () => {
     }
   };
 
-  const handleSaveEdit = async (habitData) => {
+  const handleSaveEdit = async () => {
     try {
-      const token = localStorage.getItem("token");
-      await axios.put(`/api/admin/habits/${editingHabit.id}`, habitData, {
+      await axios.put(`/api/admin/habits/${editingHabit.id}`, editForm, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
       setShowEditModal(false);
       setEditingHabit(null);
+      setEditForm({ name: '', description: '', type: 'water', frequency: 1, frequency_unit: 'day', reminder_time: '', is_active: true });
       success('Hábito actualizado correctamente');
       fetchHabits();
     } catch (err) {
       handleError(err, 'updating habit');
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      const response = await axios.post('/api/admin/habits/export', {
+        search: filters.search,
+        type: filters.type,
+        user: filters.user,
+        status: filters.status,
+        date_from: filters.date_from,
+        date_to: filters.date_to,
+      }, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        responseType: 'blob',
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `habitos-${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      success('Exportación completada');
+    } catch (err) {
+      handleError(err, 'exporting habits');
     }
   };
 
@@ -111,344 +210,561 @@ const AdminHabitsTable = () => {
 
   const getTypeColor = (type) => {
     const colors = {
-      'water': 'from-blue-500 to-cyan-500',
-      'sleep': 'from-purple-500 to-indigo-500',
-      'exercise': 'from-red-500 to-pink-500',
-      'nutrition': 'from-green-500 to-emerald-500',
-      'meditation': 'from-yellow-500 to-orange-500'
+      'water': 'admin-table-badge-water',
+      'sleep': 'admin-table-badge-sleep',
+      'exercise': 'admin-table-badge-exercise',
+      'nutrition': 'admin-table-badge-nutrition',
+      'meditation': 'admin-table-badge-meditation'
     };
-    return colors[type] || 'from-gray-500 to-slate-500';
+    return colors[type] || 'admin-table-badge-water';
   };
 
-  const getStatusColor = (status) => {
-    const colors = {
-      'active': 'badge-success',
-      'inactive': 'badge-secondary',
-      'paused': 'badge-warning'
-    };
-    return colors[status] || 'badge-secondary';
+  const handleSearch = (e) => {
+    updateFilter('search', e.target.value);
   };
 
-  const filteredHabits = habits.filter((habit) => {
-    const matchesSearch = habit.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         habit.description?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = !typeFilter || habit.type === typeFilter;
-    return matchesSearch && matchesType;
-  });
+  const handleTypeFilter = (e) => {
+    updateFilter('type', e.target.value);
+  };
+
+  const handleUserFilter = (e) => {
+    updateFilter('user', e.target.value);
+  };
+
+  const handleStatusFilter = (e) => {
+    updateFilter('status', e.target.value);
+  };
+
+  const handleDateFromFilter = (e) => {
+    updateFilter('date_from', e.target.value);
+  };
+
+  const handleDateToFilter = (e) => {
+    updateFilter('date_to', e.target.value);
+  };
+
+  const handleApplyFilters = () => {
+    fetchHabits();
+  };
+
+  const handleClearFilters = () => {
+    resetFilters();
+  };
+
+  const handleClearFilter = (filterKey) => {
+    clearFilter(filterKey);
+  };
+
+  const handleEditFormChange = (field, value) => {
+    setEditForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const filteredHabits = getFilteredHabits();
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <div className="loading-spinner w-8 h-8"></div>
+      <div className="admin-table-container">
+        <div className="admin-table-loading">
+          <div className="admin-table-loading-spinner"></div>
+          {isFiltering ? 'Aplicando filtros...' : 'Cargando hábitos...'}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Filters - Fitia Style */}
-      <div className="layer-elevated animate-fade-in">
-        <div className="p-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type="text"
-                  placeholder="Buscar hábitos por nombre o descripción..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="input-modern w-full pl-10 pr-4"
-                />
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-                className="input-modern"
-              >
-                <option value="">Todos los tipos</option>
-                <option value="water">Agua</option>
-                <option value="sleep">Sueño</option>
-                <option value="exercise">Ejercicio</option>
-                <option value="nutrition">Nutrición</option>
-                <option value="meditation">Meditación</option>
-              </select>
-              <button
-                onClick={fetchHabits}
-                className="btn-primary layer-pressable"
-              >
-                <Filter size={18} />
-                Filtrar
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Habits Table - Fitia Style */}
-      <div className="layer-elevated animate-fade-in">
-        <div className="overflow-hidden rounded-xl">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gradient-to-r from-green-50 to-emerald-50">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <Target className="h-4 w-4 mr-2 text-green-600" />
-                      Hábito
-                    </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <User className="h-4 w-4 mr-2 text-green-600" />
-                      Usuario
-                    </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <Zap className="h-4 w-4 mr-2 text-green-600" />
-                      Tipo
-                    </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Estado
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <Clock className="h-4 w-4 mr-2 text-green-600" />
-                      Recordatorio
-                    </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    <div className="flex items-center">
-                      <Calendar className="h-4 w-4 mr-2 text-green-600" />
-                      Creado
-                    </div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-100">
-                {filteredHabits.map((habit, index) => (
-                  <tr 
-                    key={habit.id} 
-                    className="layer-surface layer-interactive animate-fade-in hover:shadow-md transition-all duration-200"
-                    style={{ animationDelay: `${index * 0.05}s` }}
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className={`w-10 h-10 bg-gradient-to-br ${getTypeColor(habit.type)} rounded-xl flex items-center justify-center`}>
-                          <span className="text-white text-lg">{getTypeIcon(habit.type)}</span>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-semibold text-gray-900">{habit.name}</div>
-                          <div className="text-sm text-gray-600">{habit.description}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{habit.user?.name || 'N/A'}</div>
-                      <div className="text-sm text-gray-600">{habit.user?.email || 'N/A'}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="badge-modern badge-primary">
-                        {getTypeLabel(habit.type)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`badge-modern ${getStatusColor(habit.status)}`}>
-                        {habit.status === 'active' ? 'Activo' : 
-                         habit.status === 'inactive' ? 'Inactivo' : 'Pausado'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {habit.reminder_time ? 
-                        new Date(`2000-01-01T${habit.reminder_time}`).toLocaleTimeString('es-ES', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        }) : 
-                        'Sin recordatorio'
-                      }
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {new Date(habit.created_at).toLocaleDateString('es-ES', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => handleEdit(habit)}
-                          className="btn-icon btn-ghost layer-pressable"
-                          title="Editar hábito"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(habit)}
-                          className="btn-icon btn-danger layer-pressable"
-                          title="Eliminar hábito"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+    <div className="admin-table-container">
+      {/* Header */}
+      <div className="admin-table-header">
+        <h2 className="admin-table-title">Hábitos Registrados</h2>
+        <p className="admin-table-subtitle">Gestiona todos los hábitos creados por los usuarios</p>
+        
+        {/* Actions */}
+        <div className="admin-table-filters">
+          <button 
+            onClick={fetchHabits} 
+            className="admin-table-btn admin-table-btn-primary"
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Actualizar
+          </button>
           
-          {filteredHabits.length === 0 && (
-            <div className="text-center py-12">
-              <Target className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500 text-lg">No se encontraron hábitos</p>
-              <p className="text-gray-400 text-sm">Intenta ajustar los filtros de búsqueda</p>
-            </div>
-          )}
+          <button 
+            onClick={handleExport} 
+            className="admin-table-btn admin-table-btn-secondary"
+          >
+            <Download className="h-4 w-4" />
+            Exportar
+          </button>
         </div>
       </div>
 
-      {/* Edit Modal - Fitia Style */}
-      {showEditModal && editingHabit && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <div className="flex items-center">
-                <Edit className="h-5 w-5 text-green-600 mr-2" />
-                <h3 className="text-lg font-semibold text-gray-900">Editar Hábito</h3>
-              </div>
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="btn-icon btn-ghost"
-              >
-                ×
-              </button>
+      {/* Advanced Filters */}
+      <div className="admin-table-filters">
+        <div className="admin-table-search">
+          <Search className="admin-table-search-icon" />
+          <input
+            type="text"
+            placeholder="Buscar hábitos, usuarios o descripción..."
+            value={filters.search}
+            onChange={handleSearch}
+            onKeyPress={(e) => e.key === 'Enter' && handleApplyFilters()}
+          />
+        </div>
+        
+        <select 
+          className="admin-table-select"
+          value={filters.type}
+          onChange={handleTypeFilter}
+        >
+          <option value="">Todos los tipos</option>
+          <option value="water">Agua</option>
+          <option value="sleep">Sueño</option>
+          <option value="exercise">Ejercicio</option>
+          <option value="nutrition">Nutrición</option>
+          <option value="meditation">Meditación</option>
+        </select>
+
+        <select 
+          className="admin-table-select"
+          value={filters.status}
+          onChange={handleStatusFilter}
+        >
+          <option value="">Todos los estados</option>
+          <option value="active">Activo</option>
+          <option value="inactive">Inactivo</option>
+          <option value="completed">Completado</option>
+        </select>
+
+        <input
+          type="date"
+          className="admin-table-date"
+          value={filters.date_from}
+          onChange={handleDateFromFilter}
+          placeholder="Desde"
+        />
+
+        <input
+          type="date"
+          className="admin-table-date"
+          value={filters.date_to}
+          onChange={handleDateToFilter}
+          placeholder="Hasta"
+        />
+        
+        <button 
+          onClick={handleApplyFilters} 
+          className="admin-table-btn admin-table-btn-primary"
+          disabled={loading}
+        >
+          <Filter className="h-4 w-4" />
+          Aplicar
+        </button>
+
+        {hasActiveFilters() && (
+          <button 
+            onClick={handleClearFilters} 
+            className="admin-table-btn admin-table-btn-secondary"
+          >
+            <X className="h-4 w-4" />
+            Limpiar
+          </button>
+        )}
+      </div>
+
+      {/* Active Filters Display */}
+      {hasActiveFilters() && (
+        <div className="admin-table-active-filters">
+          <span className="admin-table-filter-label">Filtros activos:</span>
+          {Object.entries(filters).map(([key, value]) => {
+            if (value && value !== '') {
+              return (
+                <span key={key} className="admin-table-filter-tag">
+                  {key}: {value}
+                  <button 
+                    onClick={() => handleClearFilter(key)}
+                    className="admin-table-filter-remove"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              );
+            }
+            return null;
+          })}
+          <span className="admin-table-filter-count">
+            ({getFilterCount()} filtros)
+          </span>
+        </div>
+      )}
+
+      {/* Table Content */}
+      <div className="admin-table-content">
+        {filteredHabits.length === 0 ? (
+          <div className="admin-table-empty">
+            <div className="admin-table-empty-icon">
+              <Target className="h-8 w-8" />
             </div>
-            
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              const formData = new FormData(e.target);
-              handleSaveEdit({
-                name: formData.get('name'),
-                description: formData.get('description'),
-                type: formData.get('type'),
-                status: formData.get('status'),
-                reminder_time: formData.get('reminder_time'),
-                target_goals: formData.get('target_goals'),
-              });
-            }}>
-              <div className="space-y-4">
-                <div>
-                  <label className="label-modern">Nombre</label>
+            <h3 className="admin-table-empty-title">
+              {hasActiveFilters() ? 'No se encontraron hábitos con los filtros aplicados' : 'No se encontraron hábitos'}
+            </h3>
+            <p className="admin-table-empty-desc">
+              {hasActiveFilters() ? 'Intenta ajustar los filtros de búsqueda' : 'No hay hábitos registrados en el sistema'}
+            </p>
+          </div>
+        ) : (
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>
                   <input
-                    type="text"
-                    name="name"
-                    defaultValue={editingHabit.name}
-                    className="input-modern w-full"
-                    required
+                    type="checkbox"
+                    className="admin-table-checkbox"
+                    checked={selectedHabits.length === filteredHabits.length}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedHabits(filteredHabits.map(h => h.id));
+                      } else {
+                        setSelectedHabits([]);
+                      }
+                    }}
                   />
-                </div>
-                <div>
-                  <label className="label-modern">Descripción</label>
-                  <textarea
-                    name="description"
-                    defaultValue={editingHabit.description}
-                    className="input-modern w-full"
-                    rows="3"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="label-modern">Tipo</label>
-                    <select
-                      name="type"
-                      defaultValue={editingHabit.type}
-                      className="input-modern w-full"
-                    >
-                      <option value="water">Agua</option>
-                      <option value="sleep">Sueño</option>
-                      <option value="exercise">Ejercicio</option>
-                      <option value="nutrition">Nutrición</option>
-                      <option value="meditation">Meditación</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label-modern">Estado</label>
-                    <select
-                      name="status"
-                      defaultValue={editingHabit.status}
-                      className="input-modern w-full"
-                    >
-                      <option value="active">Activo</option>
-                      <option value="inactive">Inactivo</option>
-                      <option value="paused">Pausado</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="label-modern">Hora de Recordatorio</label>
+                </th>
+                <th>Hábito</th>
+                <th>Usuario</th>
+                <th>Tipo</th>
+                <th>Frecuencia</th>
+                <th>Creado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredHabits.map((habit) => (
+                <tr key={habit.id}>
+                  <td>
                     <input
-                      type="time"
-                      name="reminder_time"
-                      defaultValue={editingHabit.reminder_time}
-                      className="input-modern w-full"
+                      type="checkbox"
+                      className="admin-table-checkbox"
+                      checked={selectedHabits.includes(habit.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedHabits([...selectedHabits, habit.id]);
+                        } else {
+                          setSelectedHabits(selectedHabits.filter(id => id !== habit.id));
+                        }
+                      }}
                     />
-                  </div>
-                  <div>
-                    <label className="label-modern">Metas Objetivo</label>
-                    <input
-                      type="number"
-                      name="target_goals"
-                      defaultValue={editingHabit.target_goals}
-                      className="input-modern w-full"
-                      placeholder="Ej: 8 horas"
-                    />
-                  </div>
-                </div>
-              </div>
-              
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  onClick={() => setShowEditModal(false)}
-                  className="btn-secondary"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                >
-                  Guardar Cambios
-                </button>
-              </div>
-            </form>
+                  </td>
+                  <td>
+                    <div className="admin-table-habit-info">
+                      <div className="admin-table-habit-icon" style={{
+                        background: `linear-gradient(135deg, ${getTypeColor(habit.type).includes('water') ? '#3b82f6' : 
+                                                           getTypeColor(habit.type).includes('sleep') ? '#8b5cf6' :
+                                                           getTypeColor(habit.type).includes('exercise') ? '#ef4444' :
+                                                           getTypeColor(habit.type).includes('nutrition') ? '#22c55e' :
+                                                           getTypeColor(habit.type).includes('meditation') ? '#f59e0b' : '#6b7280'}, 
+                                                           ${getTypeColor(habit.type).includes('water') ? '#06b6d4' : 
+                                                           getTypeColor(habit.type).includes('sleep') ? '#6366f1' :
+                                                           getTypeColor(habit.type).includes('exercise') ? '#ec4899' :
+                                                           getTypeColor(habit.type).includes('nutrition') ? '#10b981' :
+                                                           getTypeColor(habit.type).includes('meditation') ? '#f97316' : '#9ca3af'})`
+                      }}>
+                        {getTypeIcon(habit.type)}
+                      </div>
+                      <div>
+                        <div className="admin-table-habit-name">{habit.name}</div>
+                        <div className="admin-table-habit-desc">
+                          {habit.description?.substring(0, 50)}...
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="admin-table-user-info">
+                      <div className="admin-table-user-name">
+                        {habit.user?.name || 'N/A'}
+                      </div>
+                      <div className="admin-table-user-email">
+                        {habit.user?.email}
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span className={`admin-table-badge ${getTypeColor(habit.type)}`}>
+                      {getTypeLabel(habit.type)}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="admin-table-habit-name">
+                      {habit.frequency} veces por {habit.frequency_unit}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="admin-table-habit-name">
+                      {new Date(habit.created_at).toLocaleDateString()}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="admin-table-actions">
+                      <button
+                        onClick={() => handleEdit(habit)}
+                        className="admin-table-action-btn admin-table-action-btn-edit"
+                        title="Editar"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(habit)}
+                        className="admin-table-action-btn admin-table-action-btn-delete"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleView(habit)}
+                        className="admin-table-action-btn admin-table-action-btn-view"
+                        title="Ver detalles"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Results Summary */}
+      {filteredHabits.length > 0 && (
+        <div className="admin-table-pagination">
+          <div className="admin-table-pagination-info">
+            Mostrando {filteredHabits.length} de {habits.length} hábitos
+            {hasActiveFilters() && ` (filtrados de ${habits.length} total)`}
           </div>
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      <ConfirmModal
-        isOpen={showDeleteModal}
-        onClose={() => {
-          setShowDeleteModal(false);
-          setHabitToDelete(null);
-        }}
-        onConfirm={confirmDelete}
-        title="Eliminar Hábito"
-        message={`¿Estás seguro de que quieres eliminar el hábito "${habitToDelete?.name}"? Esta acción no se puede deshacer.`}
-        confirmText="Eliminar"
-        cancelText="Cancelar"
-        variant="danger"
-      />
+      {/* Modals */}
+      {showDeleteModal && (
+        <ConfirmModal
+          isOpen={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+          onConfirm={confirmDelete}
+          title="Eliminar Hábito"
+          message={`¿Estás seguro de que quieres eliminar el hábito "${habitToDelete?.name}"? Esta acción no se puede deshacer.`}
+          confirmText="Eliminar"
+          cancelText="Cancelar"
+          type="danger"
+        />
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal">
+            <div className="admin-modal-header">
+              <h3 className="admin-modal-title">Editar Hábito</h3>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="admin-modal-close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="admin-modal-body">
+              <div className="admin-form-group">
+                <label className="admin-form-label">Nombre</label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) => handleEditFormChange('name', e.target.value)}
+                  className="admin-form-input"
+                  placeholder="Nombre del hábito"
+                />
+              </div>
+              <div className="admin-form-group">
+                <label className="admin-form-label">Descripción</label>
+                <textarea
+                  value={editForm.description}
+                  onChange={(e) => handleEditFormChange('description', e.target.value)}
+                  className="admin-form-input"
+                  placeholder="Descripción del hábito"
+                  rows="3"
+                />
+              </div>
+              <div className="admin-form-group">
+                <label className="admin-form-label">Tipo</label>
+                <select
+                  value={editForm.type}
+                  onChange={(e) => handleEditFormChange('type', e.target.value)}
+                  className="admin-form-input"
+                >
+                  <option value="water">Agua</option>
+                  <option value="sleep">Sueño</option>
+                  <option value="exercise">Ejercicio</option>
+                  <option value="nutrition">Nutrición</option>
+                  <option value="meditation">Meditación</option>
+                </select>
+              </div>
+              <div className="admin-form-group">
+                <label className="admin-form-label">Frecuencia</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="number"
+                    value={editForm.frequency}
+                    onChange={(e) => handleEditFormChange('frequency', parseInt(e.target.value))}
+                    className="admin-form-input"
+                    style={{ flex: 1 }}
+                    min="1"
+                  />
+                  <select
+                    value={editForm.frequency_unit}
+                    onChange={(e) => handleEditFormChange('frequency_unit', e.target.value)}
+                    className="admin-form-input"
+                    style={{ flex: 1 }}
+                  >
+                    <option value="day">Día</option>
+                    <option value="week">Semana</option>
+                    <option value="month">Mes</option>
+                  </select>
+                </div>
+              </div>
+              <div className="admin-form-group">
+                <label className="admin-form-label">Hora de Recordatorio</label>
+                <input
+                  type="time"
+                  value={editForm.reminder_time}
+                  onChange={(e) => handleEditFormChange('reminder_time', e.target.value)}
+                  className="admin-form-input"
+                />
+              </div>
+              <div className="admin-form-group">
+                <label className="admin-form-label">
+                  <input
+                    type="checkbox"
+                    checked={editForm.is_active}
+                    onChange={(e) => handleEditFormChange('is_active', e.target.checked)}
+                    style={{ marginRight: '8px' }}
+                  />
+                  Hábito Activo
+                </label>
+              </div>
+            </div>
+            <div className="admin-modal-footer">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="admin-btn admin-btn-secondary"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                className="admin-btn admin-btn-primary"
+              >
+                Guardar Cambios
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Modal */}
+      {showViewModal && viewingHabit && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal">
+            <div className="admin-modal-header">
+              <h3 className="admin-modal-title">Detalles del Hábito</h3>
+              <button
+                onClick={() => setShowViewModal(false)}
+                className="admin-modal-close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="admin-modal-body">
+              <div className="admin-user-details">
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">ID:</label>
+                  <span className="admin-detail-value">{viewingHabit.id}</span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Nombre:</label>
+                  <span className="admin-detail-value">{viewingHabit.name}</span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Descripción:</label>
+                  <span className="admin-detail-value">{viewingHabit.description || 'Sin descripción'}</span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Tipo:</label>
+                  <span className={`admin-table-badge ${getTypeColor(viewingHabit.type)}`}>
+                    {getTypeLabel(viewingHabit.type)}
+                  </span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Frecuencia:</label>
+                  <span className="admin-detail-value">
+                    {viewingHabit.frequency} veces por {viewingHabit.frequency_unit}
+                  </span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Recordatorio:</label>
+                  <span className="admin-detail-value">
+                    {viewingHabit.reminder_time ? viewingHabit.reminder_time : 'No configurado'}
+                  </span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Estado:</label>
+                  <span className={`admin-table-badge ${viewingHabit.is_active ? 'admin-table-badge-water' : 'admin-table-badge-sleep'}`}>
+                    {viewingHabit.is_active ? 'Activo' : 'Inactivo'}
+                  </span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Usuario:</label>
+                  <span className="admin-detail-value">
+                    {viewingHabit.user?.name || 'N/A'} ({viewingHabit.user?.email})
+                  </span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Creado:</label>
+                  <span className="admin-detail-value">
+                    {new Date(viewingHabit.created_at).toLocaleString()}
+                  </span>
+                </div>
+                <div className="admin-detail-group">
+                  <label className="admin-detail-label">Actualizado:</label>
+                  <span className="admin-detail-value">
+                    {new Date(viewingHabit.updated_at).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="admin-modal-footer">
+              <button
+                onClick={() => setShowViewModal(false)}
+                className="admin-btn admin-btn-secondary"
+              >
+                Cerrar
+              </button>
+              <button
+                onClick={() => {
+                  setShowViewModal(false);
+                  handleEdit(viewingHabit);
+                }}
+                className="admin-btn admin-btn-primary"
+              >
+                Editar Hábito
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

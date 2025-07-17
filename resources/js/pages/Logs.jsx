@@ -168,25 +168,25 @@ const Logs = () => {
 
     const getHabitTypeColor = (type) => {
         const colors = {
-            water: 'badge-info',
-            sleep: 'badge-warning',
-            exercise: 'badge-success',
-            nutrition: 'badge-error',
-            meditation: 'badge-info'
+            water: 'water',
+            sleep: 'sleep',
+            exercise: 'exercise',
+            nutrition: 'nutrition',
+            meditation: 'meditation'
         };
-        return colors[type] || 'badge-info';
+        return colors[type] || 'exercise';
     };
 
     const getStatusBadge = (status) => {
         switch (status) {
             case 'completed':
-                return 'badge-success';
+                return 'completed';
             case 'partial':
-                return 'badge-warning';
+                return 'partial';
             case 'missed':
-                return 'badge-error';
+                return 'missed';
             default:
-                return 'badge-info';
+                return 'completed';
         }
     };
 
@@ -210,170 +210,166 @@ const Logs = () => {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <div className="loading-spinner w-12 h-12"></div>
+            <div className="logs-container">
+                <div className="logs-loading">
+                    <div className="loading-spinner w-12 h-12"></div>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="space-y-8">
-            {/* Header - Fitia Style */}
-            <div className="layer-elevated animate-fade-in">
-                <div className="p-8 bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl">
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <h1 className="text-3xl font-bold text-gradient-green mb-2">
-                                Registros de hábitos
-                            </h1>
-                            <p className="text-gray-600 text-lg">
-                                Gestiona y revisa tus registros diarios
-                            </p>
-                        </div>
-                        <button
-                            onClick={() => setShowCreateModal(true)}
-                            className="btn-primary layer-pressable animate-bounce-subtle"
+        <div className="logs-container">
+            {/* Header */}
+            <div className="logs-header">
+                <div className="logs-header-content">
+                    <div>
+                        <h1 className="logs-title">
+                            Registros de hábitos
+                        </h1>
+                        <p className="logs-subtitle">
+                            Gestiona y revisa tus registros diarios
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="logs-new-btn"
+                    >
+                        <Plus className="h-5 w-5" />
+                        Nuevo registro
+                    </button>
+                </div>
+            </div>
+
+            {/* Filters */}
+            <div className="logs-filters">
+                <div className="logs-filters-header">
+                    <div className="logs-filters-icon">
+                        <Filter className="h-5 w-5" />
+                    </div>
+                    <h3 className="logs-filters-title">Filtros</h3>
+                </div>
+                <div className="logs-filters-grid">
+                    <div className="logs-filter-group">
+                        <label className="logs-filter-label">
+                            Fecha
+                        </label>
+                        <input
+                            type="date"
+                            value={selectedDate}
+                            onChange={e => setSelectedDate(e.target.value)}
+                            className="logs-filter-input"
+                        />
+                    </div>
+                    <div className="logs-filter-group">
+                        <label className="logs-filter-label">
+                            Hábito
+                        </label>
+                        <select
+                            value={selectedHabit}
+                            onChange={e => setSelectedHabit(e.target.value)}
+                            className="logs-filter-input"
                         >
-                            <Plus className="h-5 w-5 mr-2" />
-                            Nuevo registro
+                            <option value="">Todos los hábitos</option>
+                            {habits.map(habit => (
+                                <option key={habit.id} value={habit.id}>{habit.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="logs-filter-group">
+                        <button
+                            onClick={clearFilters}
+                            className="logs-clear-btn"
+                        >
+                            <X className="h-4 w-4" />
+                            Limpiar filtros
                         </button>
                     </div>
                 </div>
             </div>
 
-            {/* Filters - Fitia Style */}
-            <div className="layer-elevated animate-fade-in">
-                <div className="p-6">
-                    <div className="flex items-center mb-6">
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl flex items-center justify-center mr-3">
-                            <Filter className="h-5 w-5 text-blue-600" />
-                        </div>
-                        <h3 className="text-lg font-semibold text-gray-900">Filtros</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Fecha
-                            </label>
-                            <input
-                                type="date"
-                                value={selectedDate}
-                                onChange={e => setSelectedDate(e.target.value)}
-                                className="input-fitia"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Hábito
-                            </label>
-                            <select
-                                value={selectedHabit}
-                                onChange={e => setSelectedHabit(e.target.value)}
-                                className="input-fitia"
-                            >
-                                <option value="">Todos los hábitos</option>
-                                {habits.map(habit => (
-                                    <option key={habit.id} value={habit.id}>{habit.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="flex items-end">
-                            <button
-                                onClick={clearFilters}
-                                className="btn-secondary layer-pressable"
-                            >
-                                <X className="h-4 w-4 mr-2" />
-                                Limpiar filtros
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Logs Grid - Fitia Style */}
+            {/* Logs Grid */}
             {logs.length === 0 ? (
-                <div className="layer-surface animate-fade-in text-center py-16">
-                    <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-slate-100 rounded-full mx-auto mb-6 flex items-center justify-center">
-                        <Calendar className="h-10 w-10 text-gray-500" />
+                <div className="logs-empty">
+                    <div className="logs-empty-icon">
+                        <Calendar className="h-10 w-10" />
                     </div>
-                    <h3 className="text-xl font-semibold text-gray-900 mb-3">No hay registros</h3>
-                    <p className="text-gray-600 mb-8 max-w-md mx-auto">
+                    <h3 className="logs-empty-title">No hay registros</h3>
+                    <p className="logs-empty-desc">
                         No se encontraron registros para la fecha y hábito seleccionados.
                     </p>
                     <button
                         onClick={() => setShowCreateModal(true)}
-                        className="btn-primary layer-pressable"
+                        className="logs-empty-btn"
                     >
-                        <Plus className="h-5 w-5 mr-2" />
+                        <Plus className="h-5 w-5" />
                         Crear primer registro
                     </button>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="logs-grid">
                     {logs.map((log, index) => (
                         <div
                             key={log.id}
-                            className="layer-elevated layer-interactive animate-fade-in"
+                            className="log-card"
                             style={{ animationDelay: `${index * 0.1}s` }}
                         >
-                            <div className="p-6">
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-green-100 to-emerald-100 rounded-xl flex items-center justify-center">
-                                        <span className="text-2xl">{getHabitTypeIcon(log.habit_type)}</span>
-                                    </div>
-                                    <span className={`${getHabitTypeColor(log.habit_type)}`}>
-                                        {log.habit_type}
+                            <div className="log-card-header">
+                                <div className="log-icon">
+                                    <span>{getHabitTypeIcon(log.habit_type)}</span>
+                                </div>
+                                <span className={`log-type-badge ${getHabitTypeColor(log.habit_type)}`}>
+                                    {log.habit_type}
+                                </span>
+                            </div>
+                            
+                            <h3 className="log-title">{log.habit_name}</h3>
+                            
+                            <div className="log-info">
+                                <div className="log-date">
+                                    <Calendar className="log-date-icon h-4 w-4" />
+                                    {new Date(log.log_date).toLocaleDateString('es-ES', {
+                                        weekday: 'long',
+                                        year: 'numeric',
+                                        month: 'long',
+                                        day: 'numeric'
+                                    })}
+                                </div>
+                                
+                                <div className="log-status">
+                                    {getStatusIcon(log.status)}
+                                    <span className={`log-status-badge ${getStatusBadge(log.status)}`}>
+                                        {log.status === 'completed' ? 'Completado' : 
+                                         log.status === 'partial' ? 'En proceso' : 
+                                         log.status === 'missed' ? 'Incompleto' : log.status}
                                     </span>
                                 </div>
-                                
-                                <h3 className="text-lg font-semibold text-gray-900 mb-3">{log.habit_name}</h3>
-                                
-                                <div className="space-y-2 mb-4">
-                                    <div className="flex items-center text-sm text-gray-500">
-                                        <Calendar className="h-4 w-4 mr-2 text-green-500" />
-                                        {new Date(log.log_date).toLocaleDateString('es-ES', {
-                                            weekday: 'long',
-                                            year: 'numeric',
-                                            month: 'long',
-                                            day: 'numeric'
-                                        })}
-                                    </div>
-                                    
-                                    <div className="flex items-center">
-                                        {getStatusIcon(log.status)}
-                                        <span className={`ml-2 ${getStatusBadge(log.status)}`}>
-                                            {log.status === 'completed' ? 'Completado' : 
-                                             log.status === 'partial' ? 'En proceso' : 
-                                             log.status === 'missed' ? 'Incompleto' : log.status}
-                                        </span>
-                                    </div>
+                            </div>
+                            
+                            {log.notes && (
+                                <div className="log-notes">
+                                    <p className="log-notes-text">
+                                        {log.notes}
+                                    </p>
                                 </div>
-                                
-                                {log.notes && (
-                                    <div className="mb-4 p-3 bg-gradient-green rounded-lg">
-                                        <p className="text-sm text-gray-600 leading-relaxed">
-                                            {log.notes}
-                                        </p>
-                                    </div>
-                                )}
-                                
-                                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                                    <div className="flex space-x-2">
-                                        <button
-                                            onClick={() => openEditModal(log)}
-                                            className="btn-ghost layer-pressable p-2"
-                                            aria-label="Editar registro"
-                                        >
-                                            <Edit className="h-4 w-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteClick(log)}
-                                            className="btn-ghost layer-pressable p-2 text-red-500 hover:text-red-600"
-                                            aria-label="Eliminar registro"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </button>
-                                    </div>
+                            )}
+                            
+                            <div className="log-footer">
+                                <div className="log-actions">
+                                    <button
+                                        onClick={() => openEditModal(log)}
+                                        className="log-action-btn edit"
+                                        aria-label="Editar registro"
+                                    >
+                                        <Edit className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => handleDeleteClick(log)}
+                                        className="log-action-btn delete"
+                                        aria-label="Eliminar registro"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -381,222 +377,218 @@ const Logs = () => {
                 </div>
             )}
 
-            {/* Create Modal - Fitia Style */}
+            {/* Create Modal */}
             {showCreateModal && (
-                <div className="layer-overlay animate-fade-in">
-                    <div className="layer-modal animate-zoom-in-95 max-w-lg w-full my-8">
-                        <div className="p-8">
-                            <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-xl font-semibold text-gray-900">Nuevo registro</h2>
-                                <button
-                                    onClick={() => setShowCreateModal(false)}
-                                    className="btn-ghost layer-pressable p-2"
-                                    disabled={isSubmitting}
+                <div className="logs-modal-overlay">
+                    <div className="logs-modal">
+                        <div className="logs-modal-header">
+                            <h2 className="logs-modal-title">Nuevo registro</h2>
+                            <button
+                                onClick={() => setShowCreateModal(false)}
+                                className="logs-modal-close"
+                                disabled={isSubmitting}
+                            >
+                                <span className="sr-only">Cerrar</span>
+                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <form onSubmit={handleCreateLog} className="logs-modal-body">
+                            <div className="logs-form-group">
+                                <label className="logs-form-label">
+                                    Hábito
+                                </label>
+                                <select
+                                    value={formData.habit_id}
+                                    onChange={e => setFormData({ ...formData, habit_id: e.target.value })}
+                                    className="logs-form-input"
+                                    required
                                 >
-                                    <span className="sr-only">Cerrar</span>
-                                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
+                                    <option value="">Selecciona un hábito</option>
+                                    {habits.map(habit => (
+                                        <option key={habit.id} value={habit.id}>{habit.name}</option>
+                                    ))}
+                                </select>
                             </div>
                             
-                            <form onSubmit={handleCreateLog} className="space-y-6">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Hábito
-                                    </label>
-                                    <select
-                                        value={formData.habit_id}
-                                        onChange={e => setFormData({ ...formData, habit_id: e.target.value })}
-                                        className="input-fitia"
-                                        required
-                                    >
-                                        <option value="">Selecciona un hábito</option>
-                                        {habits.map(habit => (
-                                            <option key={habit.id} value={habit.id}>{habit.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Fecha
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={formData.log_date}
-                                        onChange={e => setFormData({ ...formData, log_date: e.target.value })}
-                                        className="input-fitia"
-                                        required
-                                    />
-                                </div>
-                                
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Estado
-                                    </label>
-                                    <select
-                                        value={formData.status}
-                                        onChange={e => setFormData({ ...formData, status: e.target.value })}
-                                        className="input-fitia"
-                                    >
-                                        <option value="Terminado">Terminado</option>
-                                        <option value="En proceso">En proceso</option>
-                                        <option value="Incompleto">Incompleto</option>
-                                    </select>
-                                </div>
-                                
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Notas (opcional)
-                                    </label>
-                                    <textarea
-                                        value={formData.notes}
-                                        onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                                        className="input-fitia"
-                                        rows="3"
-                                    />
-                                </div>
-                                
-                                <div className="flex justify-end space-x-3 pt-6">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowCreateModal(false)}
-                                        className="btn-secondary"
-                                        disabled={isSubmitting}
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        disabled={isSubmitting}
-                                        className="btn-primary"
-                                    >
-                                        {isSubmitting ? (
-                                            <div className="flex items-center">
-                                                <div className="loading-spinner w-4 h-4 mr-2"></div>
-                                                Guardando...
-                                            </div>
-                                        ) : (
-                                            'Crear registro'
-                                        )}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
+                            <div className="logs-form-group">
+                                <label className="logs-form-label">
+                                    Fecha
+                                </label>
+                                <input
+                                    type="date"
+                                    value={formData.log_date}
+                                    onChange={e => setFormData({ ...formData, log_date: e.target.value })}
+                                    className="logs-form-input"
+                                    required
+                                />
+                            </div>
+                            
+                            <div className="logs-form-group">
+                                <label className="logs-form-label">
+                                    Estado
+                                </label>
+                                <select
+                                    value={formData.status}
+                                    onChange={e => setFormData({ ...formData, status: e.target.value })}
+                                    className="logs-form-input"
+                                >
+                                    <option value="Terminado">Terminado</option>
+                                    <option value="En proceso">En proceso</option>
+                                    <option value="Incompleto">Incompleto</option>
+                                </select>
+                            </div>
+                            
+                            <div className="logs-form-group">
+                                <label className="logs-form-label">
+                                    Notas (opcional)
+                                </label>
+                                <textarea
+                                    value={formData.notes}
+                                    onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                                    className="logs-form-input logs-form-textarea"
+                                    rows="3"
+                                />
+                            </div>
+                            
+                            <div className="logs-modal-footer">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCreateModal(false)}
+                                    className="logs-modal-btn logs-modal-btn-secondary"
+                                    disabled={isSubmitting}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className="logs-modal-btn logs-modal-btn-primary"
+                                >
+                                    {isSubmitting ? (
+                                        <div className="flex items-center">
+                                            <div className="loading-spinner w-4 h-4 mr-2"></div>
+                                            Guardando...
+                                        </div>
+                                    ) : (
+                                        'Crear registro'
+                                    )}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
 
-            {/* Edit Modal - Fitia Style */}
+            {/* Edit Modal */}
             {showEditModal && (
-                <div className="layer-overlay animate-fade-in">
-                    <div className="layer-modal animate-zoom-in-95 max-w-lg w-full my-8">
-                        <div className="p-8">
-                            <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-xl font-semibold text-gray-900">Editar registro</h2>
+                <div className="logs-modal-overlay">
+                    <div className="logs-modal">
+                        <div className="logs-modal-header">
+                            <h2 className="logs-modal-title">Editar registro</h2>
+                            <button
+                                onClick={() => {
+                                    setShowEditModal(false);
+                                    setEditingLog(null);
+                                }}
+                                className="logs-modal-close"
+                                disabled={isSubmitting}
+                            >
+                                <span className="sr-only">Cerrar</span>
+                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <form onSubmit={handleEditLog} className="logs-modal-body">
+                            <div className="logs-form-group">
+                                <label className="logs-form-label">
+                                    Hábito
+                                </label>
+                                <select
+                                    value={formData.habit_id}
+                                    onChange={e => setFormData({ ...formData, habit_id: e.target.value })}
+                                    className="logs-form-input"
+                                    required
+                                >
+                                    <option value="">Selecciona un hábito</option>
+                                    {habits.map(habit => (
+                                        <option key={habit.id} value={habit.id}>{habit.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            
+                            <div className="logs-form-group">
+                                <label className="logs-form-label">
+                                    Fecha
+                                </label>
+                                <input
+                                    type="date"
+                                    value={formData.log_date}
+                                    onChange={e => setFormData({ ...formData, log_date: e.target.value })}
+                                    className="logs-form-input"
+                                    required
+                                />
+                            </div>
+                            
+                            <div className="logs-form-group">
+                                <label className="logs-form-label">
+                                    Estado
+                                </label>
+                                <select
+                                    value={formData.status}
+                                    onChange={e => setFormData({ ...formData, status: e.target.value })}
+                                    className="logs-form-input"
+                                >
+                                    <option value="Terminado">Terminado</option>
+                                    <option value="En proceso">En proceso</option>
+                                    <option value="Incompleto">Incompleto</option>
+                                </select>
+                            </div>
+                            
+                            <div className="logs-form-group">
+                                <label className="logs-form-label">
+                                    Notas (opcional)
+                                </label>
+                                <textarea
+                                    value={formData.notes}
+                                    onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                                    className="logs-form-input logs-form-textarea"
+                                    rows="3"
+                                />
+                            </div>
+                            
+                            <div className="logs-modal-footer">
                                 <button
+                                    type="button"
                                     onClick={() => {
                                         setShowEditModal(false);
                                         setEditingLog(null);
                                     }}
-                                    className="btn-ghost layer-pressable p-2"
+                                    className="logs-modal-btn logs-modal-btn-secondary"
                                     disabled={isSubmitting}
                                 >
-                                    <span className="sr-only">Cerrar</span>
-                                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className="logs-modal-btn logs-modal-btn-primary"
+                                >
+                                    {isSubmitting ? (
+                                        <div className="flex items-center">
+                                            <div className="loading-spinner w-4 h-4 mr-2"></div>
+                                            Guardando...
+                                        </div>
+                                    ) : (
+                                        'Actualizar registro'
+                                    )}
                                 </button>
                             </div>
-                            
-                            <form onSubmit={handleEditLog} className="space-y-6">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Hábito
-                                    </label>
-                                    <select
-                                        value={formData.habit_id}
-                                        onChange={e => setFormData({ ...formData, habit_id: e.target.value })}
-                                        className="input-fitia"
-                                        required
-                                    >
-                                        <option value="">Selecciona un hábito</option>
-                                        {habits.map(habit => (
-                                            <option key={habit.id} value={habit.id}>{habit.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Fecha
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={formData.log_date}
-                                        onChange={e => setFormData({ ...formData, log_date: e.target.value })}
-                                        className="input-fitia"
-                                        required
-                                    />
-                                </div>
-                                
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Estado
-                                    </label>
-                                    <select
-                                        value={formData.status}
-                                        onChange={e => setFormData({ ...formData, status: e.target.value })}
-                                        className="input-fitia"
-                                    >
-                                        <option value="Terminado">Terminado</option>
-                                        <option value="En proceso">En proceso</option>
-                                        <option value="Incompleto">Incompleto</option>
-                                    </select>
-                                </div>
-                                
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Notas (opcional)
-                                    </label>
-                                    <textarea
-                                        value={formData.notes}
-                                        onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                                        className="input-fitia"
-                                        rows="3"
-                                    />
-                                </div>
-                                
-                                <div className="flex justify-end space-x-3 pt-6">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setShowEditModal(false);
-                                            setEditingLog(null);
-                                        }}
-                                        className="btn-secondary"
-                                        disabled={isSubmitting}
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        disabled={isSubmitting}
-                                        className="btn-primary"
-                                    >
-                                        {isSubmitting ? (
-                                            <div className="flex items-center">
-                                                <div className="loading-spinner w-4 h-4 mr-2"></div>
-                                                Guardando...
-                                            </div>
-                                        ) : (
-                                            'Actualizar registro'
-                                        )}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
+                        </form>
                     </div>
                 </div>
             )}

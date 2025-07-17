@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class TwoFactorController extends Controller
 {
@@ -37,21 +38,87 @@ class TwoFactorController extends Controller
             ], 400);
         }
 
+        // Rate limiting específico para 2FA
+        $rateLimitKey = '2fa_send_' . $user->id;
+        $maxAttempts = 3; // Máximo 3 intentos por minuto
+        $decayMinutes = 1;
+
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($rateLimitKey, $maxAttempts)) {
+            Log::warning('Rate limit excedido para envío de código 2FA', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'ip' => $request->ip()
+            ]);
+
+            return response()->json([
+                'error' => 'Demasiados intentos. Intenta de nuevo en ' . \Illuminate\Support\Facades\RateLimiter::availableIn($rateLimitKey) . ' segundos'
+            ], 429);
+        }
+
+        \Illuminate\Support\Facades\RateLimiter::hit($rateLimitKey, $decayMinutes * 60);
+
+        // Log del inicio del proceso
+        Log::info('Iniciando envío de código 2FA', [
+            'user_id' => $user->id,
+            'email' => $user->email,
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'request_id' => uniqid()
+        ]);
+
+        // Verificar códigos existentes antes de eliminar
+        $existingCodes = TwoFactorCode::where('user_id', $user->id)->get();
+        Log::info('Códigos existentes antes de eliminar', [
+            'user_id' => $user->id,
+            'count' => $existingCodes->count(),
+            'codes' => $existingCodes->pluck('code')->toArray()
+        ]);
+
         // Generar código de 6 dígitos
         $code = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
         
         // Eliminar códigos anteriores del usuario
-        TwoFactorCode::where('user_id', $user->id)->delete();
+        $deletedCount = TwoFactorCode::where('user_id', $user->id)->delete();
+        Log::info('Códigos eliminados', [
+            'user_id' => $user->id,
+            'deleted_count' => $deletedCount
+        ]);
         
         // Crear nuevo código
-        TwoFactorCode::create([
+        $twoFactorCode = TwoFactorCode::create([
             'user_id' => $user->id,
             'code' => $code,
             'expires_at' => now()->addMinutes(10), // Expira en 10 minutos
         ]);
 
+        Log::info('Nuevo código 2FA creado', [
+            'user_id' => $user->id,
+            'code_id' => $twoFactorCode->id,
+            'code' => $code,
+            'expires_at' => $twoFactorCode->expires_at
+        ]);
+
         // Enviar código por email
-        $user->notify(new TwoFactorCodeNotification($code));
+        try {
+            $user->notify(new TwoFactorCodeNotification($code));
+            Log::info('Código 2FA enviado por email exitosamente', [
+                'user_id' => $user->id,
+                'email' => $user->email
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error enviando código 2FA por email', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'error' => $e->getMessage()
+            ]);
+            
+            // Eliminar el código si no se pudo enviar el email
+            $twoFactorCode->delete();
+            
+            return response()->json([
+                'error' => 'Error enviando el código de verificación'
+            ], 500);
+        }
 
         return response()->json([
             'message' => 'Código de verificación enviado a tu email',
@@ -77,6 +144,25 @@ class TwoFactorController extends Controller
 
         $user = User::where('email', $request->email)->first();
         
+        // Log del inicio de verificación
+        Log::info('Iniciando verificación de código 2FA', [
+            'user_id' => $user->id,
+            'email' => $user->email,
+            'code_provided' => $request->code,
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'request_id' => uniqid()
+        ]);
+
+        // Verificar códigos existentes
+        $existingCodes = TwoFactorCode::where('user_id', $user->id)->get();
+        Log::info('Códigos disponibles para verificación', [
+            'user_id' => $user->id,
+            'count' => $existingCodes->count(),
+            'codes' => $existingCodes->pluck('code')->toArray(),
+            'expires_at' => $existingCodes->pluck('expires_at')->toArray()
+        ]);
+        
         // Buscar código válido
         $twoFactorCode = TwoFactorCode::where('user_id', $user->id)
             ->where('code', $request->code)
@@ -84,10 +170,23 @@ class TwoFactorController extends Controller
             ->first();
 
         if (!$twoFactorCode) {
+            Log::warning('Código 2FA inválido o expirado', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'code_provided' => $request->code,
+                'valid_codes' => $existingCodes->pluck('code')->toArray()
+            ]);
+            
             return response()->json([
                 'error' => 'Código inválido o expirado'
             ], 400);
         }
+
+        Log::info('Código 2FA válido encontrado', [
+            'user_id' => $user->id,
+            'code_id' => $twoFactorCode->id,
+            'code' => $twoFactorCode->code
+        ]);
 
         // Marcar como verificado y actualizar último login
         $user->update([
@@ -100,6 +199,12 @@ class TwoFactorController extends Controller
 
         // Crear token de autenticación
         $token = $user->createToken('auth_token')->plainTextToken;
+
+        Log::info('Verificación 2FA exitosa', [
+            'user_id' => $user->id,
+            'email' => $user->email,
+            'token_created' => !empty($token)
+        ]);
 
         return response()->json([
             'message' => 'Código verificado correctamente',

@@ -14,6 +14,8 @@ use App\Http\Controllers\Admin\AdminAuditController;
 use App\Http\Controllers\Api\AchievementController;
 use App\Http\Controllers\Api\PushNotificationController;
 use App\Http\Controllers\Api\AnalyticsController;
+use App\Http\Controllers\Auth\PasswordResetController;
+use Illuminate\Http\Request;
 
 /*
 |--------------------------------------------------------------------------
@@ -27,19 +29,25 @@ use App\Http\Controllers\Api\AnalyticsController;
 */
 
 // Public routes (no authentication required)
-Route::post('/auth/register', [AuthController::class, 'register']);
-Route::post('/auth/login', [AuthController::class, 'login']);
+Route::middleware('api')->post('/auth/register', [AuthController::class, 'register']);
+Route::middleware('api')->post('/auth/login', [AuthController::class, 'login']);
 
 // 2FA routes (public for sending codes)
-Route::post('/auth/2fa/send', [TwoFactorController::class, 'sendCode']);
-Route::post('/auth/2fa/verify', [TwoFactorController::class, 'verifyCode']);
+Route::middleware('api')->post('/auth/2fa/send', [TwoFactorController::class, 'sendCode']);
+Route::middleware('api')->post('/auth/2fa/verify', [TwoFactorController::class, 'verifyCode']);
+
+// Password reset routes
+Route::middleware('api')->post('/password/forgot', [PasswordResetController::class, 'sendResetLink']);
+Route::middleware('api')->post('/password/validate-token', [PasswordResetController::class, 'validateToken']);
+Route::middleware('api')->post('/password/reset', [PasswordResetController::class, 'resetPassword']);
 
 // Protected routes (authentication required)
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'api'])->group(function () {
     // Auth routes
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/refresh', [AuthController::class, 'refresh']);
+    Route::delete('/auth/delete-account', [AuthController::class, 'deleteAccount']);
     
     // Profile routes
     Route::get('/profile', [ProfileController::class, 'show']);
@@ -61,8 +69,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/habit-logs/range/{start}/{end}', [HabitLogController::class, 'getByDateRange']);
 });
 
+// Logout route that handles invalid tokens gracefully
+Route::post('/auth/logout-invalid', [AuthController::class, 'logoutInvalid']);
+
 // Achievement routes
-Route::middleware(['auth:sanctum'])->group(function () {
+Route::middleware(['auth:sanctum', 'api'])->group(function () {
     Route::get('/achievements', [AchievementController::class, 'index']);
     Route::get('/achievements/unlocked', [AchievementController::class, 'unlocked']);
     Route::get('/achievements/category/{category}', [AchievementController::class, 'byCategory']);
@@ -71,18 +82,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/achievements/points', [AchievementController::class, 'pointsHistory']);
 });
 
-// Push notification routes
-Route::middleware(['auth:sanctum'])->group(function () {
-    Route::post('/push/subscribe', [PushNotificationController::class, 'subscribe']);
-    Route::post('/push/unsubscribe', [PushNotificationController::class, 'unsubscribe']);
-    Route::put('/push/preferences', [PushNotificationController::class, 'updatePreferences']);
-    Route::get('/push/preferences', [PushNotificationController::class, 'getPreferences']);
-    Route::post('/push/test', [PushNotificationController::class, 'sendTest']);
-    Route::get('/push/status', [PushNotificationController::class, 'status']);
-});
-
 // Analytics routes
-Route::middleware(['auth:sanctum'])->group(function () {
+Route::middleware(['auth:sanctum', 'api'])->group(function () {
     Route::get('/analytics', [AnalyticsController::class, 'index']);
     Route::get('/analytics/performance', [AnalyticsController::class, 'habitPerformance']);
     Route::get('/analytics/time', [AnalyticsController::class, 'timeAnalytics']);
@@ -92,7 +93,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
 });
 
 // Rutas de admin protegidas
-Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin')->group(function () {
+Route::middleware(['auth:sanctum', 'is_admin', 'api'])->prefix('admin')->group(function () {
+    // Test route for debugging
+    Route::get('/test-auth', function (Request $request) {
+        return response()->json([
+            'message' => 'Admin authentication working!',
+            'user' => $request->user(),
+            'user_id' => $request->user()->id,
+            'user_role' => $request->user()->role
+        ]);
+    });
+    
     // User management
     Route::get('/users', [AdminUserController::class, 'index']);
     Route::get('/users/{id}', [AdminUserController::class, 'show']);

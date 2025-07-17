@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import useAuthStore from '../stores/authStore';
 
 const ProtectedRoute = ({ children }) => {
-    const { isAuthenticated, isInitialized, checkAuth, initialize, isLoading } = useAuthStore();
+    const { isAuthenticated, isInitialized, checkAuth, initialize, isLoading, user } = useAuthStore();
 
     useEffect(() => {
         // Initialize auth state first
@@ -28,6 +28,11 @@ const ProtectedRoute = ({ children }) => {
 
     if (!isAuthenticated) {
         return <Navigate to="/login" replace />;
+    }
+
+    // Si el usuario es admin, redirigir a /admin
+    if (user && user.role === 'admin') {
+        return <Navigate to="/admin" replace />;
     }
 
     return children;

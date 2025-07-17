@@ -15,6 +15,8 @@ import NotificationContainer from './components/NotificationContainer';
 import Home from './pages/Home';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 function App() {
     const { isAuthenticated, isInitialized, initialize } = useAuthStore();
@@ -51,6 +53,14 @@ function App() {
                     <Route 
                         path="/register" 
                         element={isAuthenticated ? <Navigate to="/dashboard" /> : <Register />} 
+                    />
+                    <Route 
+                        path="/forgot-password" 
+                        element={isAuthenticated ? <Navigate to="/dashboard" /> : <ForgotPassword />} 
+                    />
+                    <Route 
+                        path="/reset-password/:token" 
+                        element={isAuthenticated ? <Navigate to="/dashboard" /> : <ResetPassword />} 
                     />
 
                     {/* Legal pages */}

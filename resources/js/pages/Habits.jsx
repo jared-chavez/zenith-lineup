@@ -5,6 +5,31 @@ import useNotificationStore from '../stores/notificationStore';
 import useErrorHandler from '../hooks/useErrorHandler';
 import ConfirmModal from '../components/ConfirmModal';
 
+const HabitSpinner = () => (
+  <div className="habits-loading">
+    <svg className="habit-ring-spinner" width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle
+        className="opacity-20"
+        cx="28"
+        cy="28"
+        r="24"
+        stroke="#22c55e"
+        strokeWidth="6"
+      />
+      <circle
+        className="habit-ring-spinner-arc"
+        cx="28"
+        cy="28"
+        r="24"
+        stroke="#22c55e"
+        strokeWidth="6"
+        strokeLinecap="round"
+        strokeDasharray="60 120"
+      />
+    </svg>
+  </div>
+);
+
 const Habits = () => {
     const [habits, setHabits] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -132,60 +157,58 @@ const Habits = () => {
 
     const getHabitTypeColor = (type) => {
         const colors = {
-            water: 'badge-info',
-            sleep: 'badge-warning',
-            exercise: 'badge-success',
-            nutrition: 'badge-error',
-            meditation: 'badge-info'
+            water: 'water',
+            sleep: 'sleep',
+            exercise: 'exercise',
+            nutrition: 'nutrition',
+            meditation: 'meditation'
         };
-        return colors[type] || 'badge-info';
+        return colors[type] || 'exercise';
     };
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <div className="loading-spinner w-12 h-12"></div>
+            <div className="habits-container">
+                <HabitSpinner />
             </div>
         );
     }
 
     return (
-        <div className="space-y-8">
-            {/* Header - Fitia Style */}
-            <div className="layer-elevated animate-fade-in">
-                <div className="p-8 bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl">
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <h1 className="text-3xl font-bold text-gradient-green mb-2">
-                                Mis Hábitos
-                            </h1>
-                            <p className="text-gray-600 text-lg">
-                                Gestiona tus hábitos saludables y construye una vida mejor
-                            </p>
-                        </div>
-                        <button
-                            onClick={() => {
-                                setEditingHabit(null);
-                                resetForm();
-                                setShowCreateModal(true);
-                            }}
-                            className="btn-primary layer-pressable animate-bounce-subtle"
-                        >
-                            <Plus className="h-5 w-5 mr-2" />
-                            Nuevo hábito
-                        </button>
+        <div className="habits-container">
+            {/* Header */}
+            <div className="habits-header">
+                <div className="habits-header-content">
+                    <div>
+                        <h1 className="habits-title">
+                            Mis Hábitos
+                        </h1>
+                        <p className="habits-subtitle">
+                            Gestiona tus hábitos saludables y construye una vida mejor
+                        </p>
                     </div>
+                    <button
+                        onClick={() => {
+                            setEditingHabit(null);
+                            resetForm();
+                            setShowCreateModal(true);
+                        }}
+                        className="habits-new-btn"
+                    >
+                        <Plus className="h-5 w-5" />
+                        Nuevo hábito
+                    </button>
                 </div>
             </div>
 
-            {/* Habits Grid - Fitia Style */}
+            {/* Habits Grid */}
             {habits.length === 0 ? (
-                <div className="layer-surface animate-fade-in text-center py-16">
-                    <div className="w-20 h-20 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full mx-auto mb-6 flex items-center justify-center">
-                        <Target className="h-10 w-10 text-green-600" />
+                <div className="habits-empty">
+                    <div className="habits-empty-icon">
+                        <Target className="h-10 w-10" />
                     </div>
-                    <h3 className="text-xl font-semibold text-gray-900 mb-3">No hay hábitos</h3>
-                    <p className="text-gray-600 mb-8 max-w-md mx-auto">
+                    <h3 className="habits-empty-title">No hay hábitos</h3>
+                    <p className="habits-empty-desc">
                         Comienza creando tu primer hábito para mejorar tu salud y alcanzar tus metas personales.
                     </p>
                     <button
@@ -194,87 +217,81 @@ const Habits = () => {
                             resetForm();
                             setShowCreateModal(true);
                         }}
-                        className="btn-primary layer-pressable"
+                        className="habits-empty-btn"
                     >
-                        <Plus className="h-5 w-5 mr-2" />
+                        <Plus className="h-5 w-5" />
                         Crear mi primer hábito
                     </button>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="habits-grid">
                     {habits.map((habit, index) => (
                         <div
                             key={habit.id}
-                            className="layer-elevated layer-interactive animate-fade-in"
+                            className="habit-card"
                             style={{ animationDelay: `${index * 0.1}s` }}
                         >
-                            <div className="p-6">
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-green-100 to-emerald-100 rounded-xl flex items-center justify-center">
-                                        <span className="text-2xl">{getHabitTypeIcon(habit.type)}</span>
-                                    </div>
-                                    <span className={`${getHabitTypeColor(habit.type)}`}>
-                                        {habit.type}
-                                    </span>
+                            <div className="habit-card-header">
+                                <div className="habit-icon">
+                                    <span>{getHabitTypeIcon(habit.type)}</span>
                                 </div>
-                                
-                                <h3 className="text-lg font-semibold text-gray-900 mb-3">{habit.name}</h3>
-                                
-                                {habit.description && (
-                                    <p className="text-sm text-gray-600 mb-4 line-clamp-2 leading-relaxed">
-                                        {habit.description}
+                                <span className={`habit-type-badge ${getHabitTypeColor(habit.type)}`}>
+                                    {habit.type}
+                                </span>
+                            </div>
+                            
+                            <h3 className="habit-title">{habit.name}</h3>
+                            
+                            {habit.description && (
+                                <p className="habit-description">
+                                    {habit.description}
+                                </p>
+                            )}
+
+                            {habit.reminder_time && (
+                                <div className="habit-reminder">
+                                    <Clock className="habit-reminder-icon h-4 w-4" />
+                                    Recordatorio: {habit.reminder_time}
+                                </div>
+                            )}
+                            
+                            {habit.target_goals && habit.target_goals.length > 0 && (
+                                <div className="habit-goals">
+                                    <p className="habit-goals-title">
+                                        <Target className="habit-goals-title-icon h-3 w-3" />
+                                        Objetivos:
                                     </p>
-                                )}
-
-                                {habit.reminder_time && (
-                                    <div className="flex items-center text-sm text-gray-500 mb-3 bg-gray-50 px-3 py-2 rounded-lg">
-                                        <Clock className="h-4 w-4 mr-2 text-green-500" />
-                                        Recordatorio: {habit.reminder_time}
+                                    <div>
+                                        {habit.target_goals.map((goal, index) => (
+                                            <div key={index} className="habit-goal-item">
+                                                • {goal}
+                                            </div>
+                                        ))}
                                     </div>
-                                )}
+                                </div>
+                            )}
+
+                            <div className="habit-footer">
+                                <span className={`habit-status ${habit.is_active ? 'active' : 'inactive'}`}>
+                                    <CheckCircle className="habit-status-icon h-3 w-3" />
+                                    {habit.is_active ? 'Activo' : 'Inactivo'}
+                                </span>
                                 
-                                {habit.target_goals && habit.target_goals.length > 0 && (
-                                    <div className="mb-4">
-                                        <p className="text-xs font-medium text-gray-700 mb-2 flex items-center">
-                                            <Target className="h-3 w-3 mr-1" />
-                                            Objetivos:
-                                        </p>
-                                        <div className="space-y-1">
-                                            {habit.target_goals.map((goal, index) => (
-                                                <div key={index} className="text-xs text-gray-600 bg-gradient-green px-3 py-2 rounded-lg">
-                                                    • {goal}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                                        habit.is_active 
-                                            ? 'badge-success' 
-                                            : 'badge-error'
-                                    }`}>
-                                        <CheckCircle className="h-3 w-3 mr-1" />
-                                        {habit.is_active ? 'Activo' : 'Inactivo'}
-                                    </span>
-                                    
-                                    <div className="flex space-x-2">
-                                        <button
-                                            onClick={() => handleEdit(habit)}
-                                            className="btn-ghost layer-pressable p-2"
-                                            aria-label="Editar hábito"
-                                        >
-                                            <Edit className="h-4 w-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteClick(habit)}
-                                            className="btn-ghost layer-pressable p-2 text-red-500 hover:text-red-600"
-                                            aria-label="Eliminar hábito"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </button>
-                                    </div>
+                                <div className="habit-actions">
+                                    <button
+                                        onClick={() => handleEdit(habit)}
+                                        className="habit-action-btn edit"
+                                        aria-label="Editar hábito"
+                                    >
+                                        <Edit className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => handleDeleteClick(habit)}
+                                        className="habit-action-btn delete"
+                                        aria-label="Eliminar hábito"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -282,144 +299,142 @@ const Habits = () => {
                 </div>
             )}
 
-            {/* Create/Edit Modal - Fitia Style */}
+            {/* Create/Edit Modal */}
             {showCreateModal && (
-                <div className="layer-overlay animate-fade-in">
-                    <div className="layer-modal animate-zoom-in-95 max-w-lg w-full my-8">
-                        <div className="p-8">
-                            <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-xl font-semibold text-gray-900">
-                                    {editingHabit ? 'Editar hábito' : 'Nuevo hábito'}
-                                </h2>
+                <div className="habits-modal-overlay">
+                    <div className="habits-modal">
+                        <div className="habits-modal-header">
+                            <h2 className="habits-modal-title">
+                                {editingHabit ? 'Editar hábito' : 'Nuevo hábito'}
+                            </h2>
+                            <button
+                                onClick={() => {
+                                    setShowCreateModal(false);
+                                    setEditingHabit(null);
+                                    resetForm();
+                                }}
+                                className="habits-modal-close"
+                                disabled={isSubmitting}
+                            >
+                                <span className="sr-only">Cerrar</span>
+                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <form onSubmit={handleSubmit} className="habits-modal-body">
+                            <div className="habits-form-group">
+                                <label className="habits-form-label">
+                                    Nombre del hábito
+                                </label>
+                                <input
+                                    type="text"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                                    className="habits-form-input"
+                                    required
+                                />
+                            </div>
+
+                            <div className="habits-form-group">
+                                <label className="habits-form-label">
+                                    Tipo
+                                </label>
+                                <select
+                                    value={formData.type}
+                                    onChange={(e) => setFormData({...formData, type: e.target.value})}
+                                    className="habits-form-input"
+                                >
+                                    <option value="exercise">Ejercicio</option>
+                                    <option value="nutrition">Nutrición</option>
+                                    <option value="sleep">Sueño</option>
+                                    <option value="water">Agua</option>
+                                    <option value="meditation">Meditación</option>
+                                </select>
+                            </div>
+
+                            <div className="habits-form-group">
+                                <label className="habits-form-label">
+                                    Descripción (opcional)
+                                </label>
+                                <textarea
+                                    value={formData.description}
+                                    onChange={(e) => setFormData({...formData, description: e.target.value})}
+                                    className="habits-form-input habits-form-textarea"
+                                    rows="3"
+                                />
+                            </div>
+
+                            <div className="habits-form-group">
+                                <label className="habits-form-label">
+                                    Hora de recordatorio (opcional)
+                                </label>
+                                <input
+                                    type="time"
+                                    value={formData.reminder_time}
+                                    onChange={(e) => setFormData({...formData, reminder_time: e.target.value})}
+                                    className="habits-form-input"
+                                />
+                            </div>
+
+                            <div className="habits-form-group">
+                                <div className="habits-form-checkbox-group">
+                                    <input
+                                        type="checkbox"
+                                        id="is_active"
+                                        checked={formData.is_active}
+                                        onChange={(e) => setFormData({...formData, is_active: e.target.checked})}
+                                        className="habits-form-checkbox"
+                                    />
+                                    <label htmlFor="is_active" className="habits-form-checkbox-label">
+                                        Hábito activo
+                                    </label>
+                                </div>
+
+                                <div className="habits-form-checkbox-group">
+                                    <input
+                                        type="checkbox"
+                                        id="is_public"
+                                        checked={formData.is_public}
+                                        onChange={(e) => setFormData({...formData, is_public: e.target.checked})}
+                                        className="habits-form-checkbox"
+                                    />
+                                    <label htmlFor="is_public" className="habits-form-checkbox-label">
+                                        Hábito público
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div className="habits-modal-footer">
                                 <button
+                                    type="button"
                                     onClick={() => {
                                         setShowCreateModal(false);
                                         setEditingHabit(null);
                                         resetForm();
                                     }}
-                                    className="btn-ghost layer-pressable p-2"
+                                    className="habits-modal-btn habits-modal-btn-secondary"
                                     disabled={isSubmitting}
                                 >
-                                    <span className="sr-only">Cerrar</span>
-                                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className="habits-modal-btn habits-modal-btn-primary"
+                                >
+                                    {isSubmitting ? (
+                                        <div className="flex items-center">
+                                            <div className="loading-spinner w-4 h-4 mr-2"></div>
+                                            Guardando...
+                                        </div>
+                                    ) : (
+                                        editingHabit ? 'Actualizar' : 'Crear'
+                                    )}
                                 </button>
                             </div>
-                            
-                            <form onSubmit={handleSubmit} className="space-y-6">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Nombre del hábito
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={formData.name}
-                                        onChange={(e) => setFormData({...formData, name: e.target.value})}
-                                        className="input-fitia"
-                                        required
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Tipo
-                                    </label>
-                                    <select
-                                        value={formData.type}
-                                        onChange={(e) => setFormData({...formData, type: e.target.value})}
-                                        className="input-fitia"
-                                    >
-                                        <option value="exercise">Ejercicio</option>
-                                        <option value="nutrition">Nutrición</option>
-                                        <option value="sleep">Sueño</option>
-                                        <option value="water">Agua</option>
-                                        <option value="meditation">Meditación</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Descripción (opcional)
-                                    </label>
-                                    <textarea
-                                        value={formData.description}
-                                        onChange={(e) => setFormData({...formData, description: e.target.value})}
-                                        className="input-fitia"
-                                        rows="3"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Hora de recordatorio (opcional)
-                                    </label>
-                                    <input
-                                        type="time"
-                                        value={formData.reminder_time}
-                                        onChange={(e) => setFormData({...formData, reminder_time: e.target.value})}
-                                        className="input-fitia"
-                                    />
-                                </div>
-
-                                <div className="space-y-3">
-                                    <div className="flex items-center">
-                                        <input
-                                            type="checkbox"
-                                            id="is_active"
-                                            checked={formData.is_active}
-                                            onChange={(e) => setFormData({...formData, is_active: e.target.checked})}
-                                            className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                                        />
-                                        <label htmlFor="is_active" className="ml-3 block text-sm text-gray-900">
-                                            Hábito activo
-                                        </label>
-                                    </div>
-
-                                    <div className="flex items-center">
-                                        <input
-                                            type="checkbox"
-                                            id="is_public"
-                                            checked={formData.is_public}
-                                            onChange={(e) => setFormData({...formData, is_public: e.target.checked})}
-                                            className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                                        />
-                                        <label htmlFor="is_public" className="ml-3 block text-sm text-gray-900">
-                                            Hábito público
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div className="flex justify-end space-x-3 pt-6">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setShowCreateModal(false);
-                                            setEditingHabit(null);
-                                            resetForm();
-                                        }}
-                                        className="btn-secondary"
-                                        disabled={isSubmitting}
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        disabled={isSubmitting}
-                                        className="btn-primary"
-                                    >
-                                        {isSubmitting ? (
-                                            <div className="flex items-center">
-                                                <div className="loading-spinner w-4 h-4 mr-2"></div>
-                                                Guardando...
-                                            </div>
-                                        ) : (
-                                            editingHabit ? 'Actualizar' : 'Crear'
-                                        )}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
+                        </form>
                     </div>
                 </div>
             )}

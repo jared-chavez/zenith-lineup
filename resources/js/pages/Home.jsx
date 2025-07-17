@@ -1,8 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import AdvancedCarousel from '../components/AdvancedCarousel';
 
-// Puedes reemplazar este SVG por el logo real optimizado
-const BonsaiLogo = () => (
+export const BonsaiLogo = () => (
   <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
     <circle cx="36" cy="12" r="8" fill="#FACC15"/>
     <ellipse cx="20" cy="32" rx="14" ry="10" fill="#22c55e"/>
@@ -124,6 +124,11 @@ const Home = () => (
       <div className="home-hero-img">
         <BonsaiLogo />
       </div>
+    </section>
+
+    {/* Carousel de comidas saludables */}
+    <section className="w-full flex justify-center my-10 animate-fade-in">
+      <AdvancedCarousel />
     </section>
 
     {/* Features */}
