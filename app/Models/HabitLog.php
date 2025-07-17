@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 class HabitLog extends Model
@@ -55,8 +56,8 @@ class HabitLog extends Model
         return [
             'habit_id' => ['required', 'exists:habits,id'],
             'log_date' => ['required', 'date', 'before_or_equal:today'],
-            'data' => ['required', 'array'],
-            'status' => ['required', Rule::in(['completed', 'partial', 'missed'])],
+            // 'data' => ['required', 'array'],
+            // 'status' => ['required', Rule::in(['completed', 'partial', 'missed'])],
             'notes' => ['nullable', 'string', 'max:1000'],
             'metadata' => ['nullable', 'array'],
         ];
@@ -84,5 +85,19 @@ class HabitLog extends Model
     public function belongsToUser(int $userId): bool
     {
         return $this->user_id === $userId;
+    }
+
+    /**
+     * Resolve route binding to only return habit logs belonging to the authenticated user.
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        if (!Auth::check()) {
+            return null;
+        }
+        
+        return $this->where('id', $value)
+                    ->where('user_id', Auth::user()->id)
+                    ->first();
     }
 } 

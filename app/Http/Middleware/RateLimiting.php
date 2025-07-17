@@ -64,15 +64,23 @@ class RateLimiting
      */
     protected function getMaxAttempts(Request $request): int
     {
+        // Admin routes - very high limits
+        if ($request->is('api/admin/*')) {
+            return 1000; // 1000 requests per minute for admin
+        }
+
+        // Auth routes - moderate limits
         if ($request->is('api/auth/*')) {
-            return 5; // Login attempts
+            return 20; // Increased from 10 to 20 for login attempts
         }
 
+        // API routes - high limits
         if ($request->is('api/*')) {
-            return 60; // API requests per minute
+            return 500; // Increased from 300 to 500 for API requests per minute
         }
 
-        return 120; // General requests per minute
+        // General routes - very high limits
+        return 1000; // Increased from 600 to 1000 for general requests per minute
     }
 
     /**
@@ -80,10 +88,17 @@ class RateLimiting
      */
     protected function getDecayMinutes(Request $request): int
     {
-        if ($request->is('api/auth/*')) {
-            return 15; // 15 minutes for auth attempts
+        // Admin routes - very short decay
+        if ($request->is('api/admin/*')) {
+            return 1; // 1 minute for admin routes
         }
 
+        // Auth routes - moderate decay
+        if ($request->is('api/auth/*')) {
+            return 3; // Reduced from 5 to 3 minutes for auth attempts
+        }
+
+        // All other routes - short decay
         return 1; // 1 minute for other requests
     }
 } 

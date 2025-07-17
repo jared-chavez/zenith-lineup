@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UpdateProfileRequest;
 use App\Models\UserProfile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
 
 class ProfileController extends Controller
 {
@@ -32,25 +32,16 @@ class ProfileController extends Controller
     /**
      * Update user profile.
      */
-    public function update(Request $request): JsonResponse
+    public function update(UpdateProfileRequest $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), UserProfile::rules());
-
-        if ($validator->fails()) {
-            return response()->json([
-                'error' => 'Validation failed',
-                'messages' => $validator->errors()
-            ], 422);
-        }
-
         try {
             $user = $request->user();
             $profile = $user->profile;
 
             if (!$profile) {
-                $profile = $user->profile()->create($request->all());
+                $profile = $user->profile()->create($request->validated());
             } else {
-                $profile->update($request->all());
+                $profile->update($request->validated());
             }
 
             Log::info('Profile updated', [

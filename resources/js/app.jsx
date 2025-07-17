@@ -1,43 +1,27 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuthStore } from './stores/authStore';
-import Layout from './components/Layout';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
-import Habits from './pages/Habits';
-import Profile from './pages/Profile';
-import ProtectedRoute from './components/ProtectedRoute';
+import { createRoot } from 'react-dom/client';
+import MainApp from './MainApp.jsx';
+import '../css/app.css';
+import './bootstrap';
 
-function App() {
-    const { isAuthenticated } = useAuthStore();
-
+// Error boundary component
+function ErrorBoundary({ children }) {
     return (
-        <div className="min-h-screen bg-gray-50">
-            <Routes>
-                {/* Public routes */}
-                <Route 
-                    path="/login" 
-                    element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />} 
-                />
-                <Route 
-                    path="/register" 
-                    element={isAuthenticated ? <Navigate to="/dashboard" /> : <Register />} 
-                />
-
-                {/* Protected routes */}
-                <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-                    <Route index element={<Navigate to="/dashboard" />} />
-                    <Route path="dashboard" element={<Dashboard />} />
-                    <Route path="habits" element={<Habits />} />
-                    <Route path="profile" element={<Profile />} />
-                </Route>
-
-                {/* Fallback */}
-                <Route path="*" element={<Navigate to="/dashboard" />} />
-            </Routes>
+        <div>
+            {children}
         </div>
     );
 }
 
-export default App; 
+// Main app with error handling
+function App() {
+    return (
+        <ErrorBoundary>
+            <MainApp />
+        </ErrorBoundary>
+    );
+}
+
+// Mount with error handling
+const root = createRoot(document.getElementById('app'));
+root.render(<App />);
