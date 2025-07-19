@@ -14,20 +14,17 @@ const useAuthStore = create(
 
             // Initialize auth state
             initialize: async () => {
-                const { token } = get();
-                console.log('=== AUTH STORE INITIALIZE ===');
-                console.log('Token from store:', token ? 'Presente' : 'Ausente');
-                console.log('Token completo:', token);
+                const token = localStorage.getItem('auth-storage') ? 
+                    JSON.parse(localStorage.getItem('auth-storage')).state?.token : null;
                 
                 if (token) {
                     // Restore token in axios headers
                     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-                    console.log('Token set in axios headers:', axios.defaults.headers.common['Authorization']);
+                    // Token set successfully
                     
                     try {
                         // Verifica si el token es válido
                         const response = await axios.get('/api/auth/me');
-                        console.log('Auth check successful:', response.data);
                         set({
                             user: response.data.user,
                             isAuthenticated: true,
@@ -46,10 +43,8 @@ const useAuthStore = create(
                         delete axios.defaults.headers.common['Authorization'];
                     }
                 } else {
-                    console.log('No token found, setting unauthenticated');
                     set({ isInitialized: true, isAuthenticated: false });
                 }
-                console.log('=== END AUTH STORE INITIALIZE ===');
             },
 
             // Login

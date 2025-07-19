@@ -100,6 +100,19 @@ class HabitController extends Controller
             ], 404);
         }
 
+        // Additional authorization check
+        if (!$habit->belongsToUser($request->user()->id)) {
+            Log::warning('Unauthorized habit update attempt', [
+                'user_id' => $request->user()->id,
+                'habit_id' => $id,
+                'habit_user_id' => $habit->user_id
+            ]);
+            
+            return response()->json([
+                'error' => 'Unauthorized'
+            ], 403);
+        }
+
         $validator = Validator::make($request->all(), Habit::rules());
 
         if ($validator->fails()) {
@@ -109,11 +122,26 @@ class HabitController extends Controller
         }
 
         try {
-            $habit->update($request->all());
+            // Sanitize input data
+            $updateData = $request->only([
+                'name', 'type', 'description', 'target_goals', 
+                'reminder_time', 'is_active', 'is_public'
+            ]);
+            
+            // Clean target_goals array
+            if (isset($updateData['target_goals'])) {
+                $updateData['target_goals'] = array_filter(
+                    $updateData['target_goals'], 
+                    function($goal) { return is_numeric($goal) && $goal >= 0; }
+                );
+            }
+
+            $habit->update($updateData);
 
             Log::info('Habit updated', [
                 'user_id' => $request->user()->id,
-                'habit_id' => $habit->id
+                'habit_id' => $habit->id,
+                'updated_fields' => array_keys($updateData)
             ]);
 
             return response()->json([
@@ -125,7 +153,8 @@ class HabitController extends Controller
             Log::error('Habit update failed', [
                 'user_id' => $request->user()->id,
                 'habit_id' => $habit->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([

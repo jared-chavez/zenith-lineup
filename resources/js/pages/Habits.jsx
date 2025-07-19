@@ -71,13 +71,42 @@ const Habits = () => {
         setIsSubmitting(true);
         
         try {
+            // Sanitize and validate form data
             const payload = {
-                ...formData,
-                reminder_time: formData.reminder_time || null,
+                name: formData.name.trim(),
+                type: formData.type,
+                description: formData.description ? formData.description.trim() : '',
                 target_goals: Array.isArray(formData.target_goals)
                     ? formData.target_goals.filter(goal => goal && goal.trim() !== '')
                     : [],
+                reminder_time: formData.reminder_time || null,
+                is_active: Boolean(formData.is_active),
+                is_public: Boolean(formData.is_public)
             };
+            
+            // Ensure reminder_time is in correct format (H:i)
+            if (payload.reminder_time) {
+                // Convert from HTML time input format (HH:MM) to Laravel format (H:i)
+                const timeParts = payload.reminder_time.split(':');
+                if (timeParts.length === 2) {
+                    const hours = parseInt(timeParts[0]);
+                    const minutes = parseInt(timeParts[1]);
+                    payload.reminder_time = `${hours}:${minutes.toString().padStart(2, '0')}`;
+                }
+            }
+            
+            // Additional client-side validation
+            if (payload.name.length < 2) {
+                throw new Error('El nombre del hábito debe tener al menos 2 caracteres');
+            }
+            
+            if (payload.name.length > 100) {
+                throw new Error('El nombre del hábito no puede exceder 100 caracteres');
+            }
+            
+            if (payload.description.length > 1000) {
+                throw new Error('La descripción no puede exceder 1000 caracteres');
+            }
             
             if (editingHabit) {
                 await axios.put(`/api/habits/${editingHabit.id}`, payload);
@@ -92,7 +121,12 @@ const Habits = () => {
             resetForm();
             fetchHabits();
         } catch (error) {
-            handleError(error, editingHabit ? 'updating habit' : 'creating habit');
+            if (error.message && !error.response) {
+                // Client-side validation error
+                showError(error.message);
+            } else {
+                handleError(error, editingHabit ? 'updating habit' : 'creating habit');
+            }
         } finally {
             setIsSubmitting(false);
         }
@@ -120,12 +154,25 @@ const Habits = () => {
 
     const handleEdit = (habit) => {
         setEditingHabit(habit);
+        
+        // Format reminder_time for HTML time input (HH:MM)
+        let formattedReminderTime = '';
+        if (habit.reminder_time) {
+            // Convert from Laravel format (H:i) to HTML time input format (HH:MM)
+            const timeParts = habit.reminder_time.split(':');
+            if (timeParts.length === 2) {
+                const hours = timeParts[0].padStart(2, '0');
+                const minutes = timeParts[1].padStart(2, '0');
+                formattedReminderTime = `${hours}:${minutes}`;
+            }
+        }
+        
         setFormData({
             name: habit.name,
             type: habit.type,
             description: habit.description || '',
             target_goals: habit.target_goals || [],
-            reminder_time: habit.reminder_time || '',
+            reminder_time: formattedReminderTime,
             is_active: habit.is_active,
             is_public: habit.is_public
         });

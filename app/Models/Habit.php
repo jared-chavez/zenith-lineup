@@ -58,14 +58,26 @@ class Habit extends Model
     public static function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:100', 'min:2'],
+            'name' => ['required', 'string', 'max:100', 'min:2', 'regex:/^[a-zA-Z0-9\s\-_áéíóúÁÉÍÓÚñÑ]+$/'],
             'type' => ['required', Rule::in(['water', 'sleep', 'exercise', 'nutrition', 'meditation'])],
-            'description' => ['nullable', 'string', 'max:1000'],
+            'description' => ['nullable', 'string', 'max:1000', 'regex:/^[a-zA-Z0-9\s\-_.,!?áéíóúÁÉÍÓÚñÑ]+$/'],
             'target_goals' => ['nullable', 'array'],
-            'target_goals.*' => ['numeric', 'min:0'],
+            'target_goals.*' => ['numeric', 'min:0', 'max:1000'],
             'reminder_time' => ['nullable', 'date_format:H:i'],
             'is_active' => ['boolean'],
             'is_public' => ['boolean'],
+        ];
+    }
+
+    /**
+     * Custom validation messages.
+     */
+    public static function validationMessages(): array
+    {
+        return [
+            'name.regex' => 'El nombre solo puede contener letras, números, espacios y guiones.',
+            'description.regex' => 'La descripción contiene caracteres no permitidos.',
+            'target_goals.*.max' => 'Los objetivos no pueden exceder 1000.',
         ];
     }
 
