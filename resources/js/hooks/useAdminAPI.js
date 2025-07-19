@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import useAuthStore from '../stores/authStore';
 import useNotificationStore from '../stores/notificationStore';
@@ -9,22 +9,29 @@ export const useAdminAPI = () => {
     const { success, error } = useNotificationStore();
     const [loading, setLoading] = useState(false);
 
-    // Debug: Verificar token
-    console.log('=== DEBUG useAdminAPI ===');
-    console.log('Token disponible:', token ? 'SÍ' : 'NO');
-    console.log('Token (primeros 20 chars):', token ? token.substring(0, 20) + '...' : 'N/A');
-    console.log('========================');
+    const adminAPI = useMemo(() => {
+        if (!token) {
+            return null;
+        }
+        
+        const api = axios.create({
+            baseURL: '/api/admin',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        });
+        return api;
+    }, [token]);
 
     // Helper function to make authenticated admin requests
     const makeAdminRequest = useCallback(async (method, endpoint, data = null) => {
         setLoading(true);
         try {
-            console.log(`Making admin request: ${method} /api/admin${endpoint}`);
-            console.log('Token being used:', token ? token.substring(0, 20) + '...' : 'N/A');
-            
-            const response = await axios({
+            const response = await adminAPI({
                 method,
-                url: `/api/admin${endpoint}`,
+                url: endpoint,
                 data,
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -34,14 +41,13 @@ export const useAdminAPI = () => {
             });
             return response.data;
         } catch (err) {
-            console.error('Admin API Error:', err.response?.status, err.response?.data);
             const message = err.response?.data?.message || err.message || 'Error en la operación';
             error(message);
             throw err;
         } finally {
             setLoading(false);
         }
-    }, [token, error]);
+    }, [token, error, adminAPI]);
 
     return { makeAdminRequest, loading };
 };

@@ -25,14 +25,6 @@ const AdminUsers = () => {
 
   // Debug: Mostrar información de autenticación
   useEffect(() => {
-    console.log('=== DEBUG AUTH INFO ===');
-    console.log('Token:', token ? 'Presente' : 'Ausente');
-    console.log('Token completo:', token);
-    console.log('Usuario autenticado:', isAuthenticated);
-    console.log('Usuario actual:', user);
-    console.log('Rol del usuario:', user?.role);
-    console.log('localStorage auth-storage:', localStorage.getItem('auth-storage'));
-    console.log('axios default headers:', axios.defaults.headers.common);
     console.log('========================');
   }, [token, isAuthenticated, user]);
 

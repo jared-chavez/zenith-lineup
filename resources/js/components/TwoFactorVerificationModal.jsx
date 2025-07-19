@@ -62,9 +62,7 @@ const TwoFactorVerificationModal = ({ isOpen, onClose, onSuccess, email }) => {
         setError('');
 
         try {
-            console.log('Enviando código 2FA para:', email);
             const response = await axios.post('/api/auth/2fa/send', { email });
-            console.log('Código 2FA enviado exitosamente:', response.data);
             setTimeLeft(60); // 60 seconds cooldown
         } catch (error) {
             console.error('Error enviando código 2FA:', error.response?.data);
